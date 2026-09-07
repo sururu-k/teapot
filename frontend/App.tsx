@@ -22,9 +22,9 @@ declare const __APP_VERSION__: string;
 
 /* ---------- types ---------- */
 interface Agent {
-  id: string; status: string; statusReason: string; workspace: string;
+  id: string; status: string; statusReason: string; ワークスペース: string;
   session: string; branch: string; goal: { status: string; text: string; verify?: string; audit?: { verdict: "approved" | "changes-required"; feedback: string; at: string } };
-  workspaceMissing?: boolean;
+  ワークスペースMissing?: boolean;
   latestProgress: any; stats: any; model: string; provider?: string;
   pendingPrompts?: number;
   todo?: string;
@@ -42,9 +42,9 @@ interface Ev {
 const AUTHORS: Record<string, { name: string; icon: string; color: string }> = {
   prompt: { name: "you", icon: "person", color: "#faa81a" },
   user: { name: "you", icon: "person", color: "#faa81a" },
-  message: { name: "agent", icon: "chat_bubble", color: "#5865f2" },
+  message: { name: "エージェント", icon: "chat_bubble", color: "#5865f2" },
   progress: { name: "progress", icon: "trending_up", color: "#3ba55d" },
-  question: { name: "agent", icon: "help", color: "#5865f2" }, // ask_user comes from the agent too
+  question: { name: "エージェント", icon: "help", color: "#5865f2" }, // ask_user comes from the エージェント too
 };
 const HARNESS_AUTH = { name: "harness", icon: "megaphone", color: "#3ba55d" };
 
@@ -78,7 +78,7 @@ const THEMES: ThemeMeta[] = [
   { key: "ramune", label: "Ramune", mode: "light", sw: ["#ddeff7", "#fbfeff", "#1d86ae"] },
 ];
 
-/** xterm palette pulled from the active theme's CSS variables (fallback: dark) */
+/** xterm palette pulled from the アクティブ theme's CSS variables (fallback: dark) */
 function themeColors(): { background: string; foreground: string } {
   let bg = "";
   let fg = "";
@@ -90,7 +90,7 @@ function themeColors(): { background: string; foreground: string } {
   return { background: bg || "#0d0e12", foreground: fg || "#dcdee4" };
 }
 
-/** author for an event — mirrored sub-agent rows act under their own id */
+/** author for an event — mirrored sub-エージェント rows act under their own id */
 const authorOf = (e: Ev) => {
   if (e.data?.actor) return { name: `@${String(e.data.actor)}`, icon: "jigsaw", color: "#3ba0c9" };
   if (e.type === "tool_call" || e.type === "tool_result")
@@ -152,15 +152,15 @@ const wsTokenQuery = () => {
 
 /* ---------- app ---------- */
 export default function App() {
-  const [agents, setAgents] = createSignal<Agent[]>([]);
+  const [エージェントs, setAgents] = createSignal<Agent[]>([]);
   const [selected, setSelected] = createSignal<string | null>(null);
   // internal session id backing the currently viewed timeline — the stable
   // handle behind /session/<id> URLs and every events fetch (?session=…)
   const [timelineId, setTimelineId] = createSignal<string>("");
-  // internal session id → owning agent id, and agent id → its session ids
-  // (newest first) — ONE /api/sessions call serves every agent, refetched
-  // only when the agent SET changes (not on every poll: the fan-out of one
-  // request per agent per switch hammered the server for identical data)
+  // internal session id → owning エージェント id, and エージェント id → its session ids
+  // (newest first) — ONE /api/sessions call serves every エージェント, refetched
+  // only when the エージェント SET changes (not on every poll: the fan-out of one
+  // request per エージェント per switch hammered the server for identical data)
   const [masterSessionIndex, setMasterSessionIndex] = createSignal<Map<string, string>>(new Map());
   const [sessionsByAgent, setSessionsByAgent] = createSignal<Map<string, string[]>>(new Map());
   let sessionIndexFetched = false;
@@ -172,20 +172,20 @@ export default function App() {
       const byId = new Map<string, string>();
       const byAgent = new Map<string, string[]>();
       for (const s of r.sessions ?? []) {
-        byId.set(s.id, s.agentId);
-        const list = byAgent.get(s.agentId) ?? [];
+        byId.set(s.id, s.エージェントId);
+        const list = byAgent.get(s.エージェントId) ?? [];
         list.push(s.id); // server returns newest first
-        byAgent.set(s.agentId, list);
+        byAgent.set(s.エージェントId, list);
       }
       setMasterSessionIndex(byId);
       setSessionsByAgent(byAgent);
-    } catch { /* transient — retried on next agent-set change */ }
+    } catch { /* transient — retried on next エージェント-set change */ }
   }
   const [events, setEvents] = createSignal<Ev[]>([]);
   const [eventsTotal, setEventsTotal] = createSignal(0); // server-side count (window is capped)
   const [branches, setBranches] = createSignal<any[]>([]);
   const [metrics, setMetrics] = createSignal<any>(null);
-  // per-session unsent prompt drafts — switching agents preserves what each
+  // per-session unsent prompt drafts — switching エージェントs preserves what each
   // one was typing instead of showing the previous session's text
   const drafts = new Map<string, string>();
   const [draft, setDraft] = createSignal(drafts.get(selected() ?? "") ?? "");
@@ -233,18 +233,18 @@ export default function App() {
     sysMql?.addEventListener("change", onChange);
     onCleanup(() => sysMql?.removeEventListener("change", onChange));
   });
-  // single writer: resolves the active theme and slaps it on <html>
+  // single writer: resolves the アクティブ theme and slaps it on <html>
   createEffect(() => {
-    const active = themeAuto()
+    const アクティブ = themeAuto()
       ? sysPrefersLight()
         ? sysLightTheme()
         : sysDarkTheme()
       : fixedTheme();
-    document.documentElement.dataset.theme = active;
+    document.documentElement.dataset.theme = アクティブ;
     // light/dark appearance for components that ship their own palettes
     // (e.g. shiki dual-theme code blocks)
     document.documentElement.dataset.appearance =
-      THEMES.find((t) => t.key === active)?.mode ?? "dark";
+      THEMES.find((t) => t.key === アクティブ)?.mode ?? "dark";
   });
   // model switcher state
   const [modelProvider, setModelProvider] = createSignal("");
@@ -292,23 +292,23 @@ export default function App() {
   };
   // Keep the switcher aligned with the selected session. Keyed on STRINGS,
   // not on sel() identity: this used to re-run (and re-fetch /api/models!)
-  // on every poll in which the agent's snapshot object changed — visibly
+  // on every poll in which the エージェント's snapshot object changed — visibly
   // rebuilding the whole 🧦 model section = the "right panel flashes" bug.
   // FIX: the draft/provider signals are NOT dependencies — reading them
-  // reactively cleared the draft on every keystroke and reverted the
+  // reアクティブly cleared the draft on every keystroke and reverted the
   // provider dropdown on manual change (the "right panel model switching
   // doesn't work" bug). Clear draft / sync provider only when the selected
-  // agent actually changes.
+  // エージェント actually changes.
   let _prevModelAgent: string | null = null;
   createEffect(() => {
     const id = selected();
     if (!id) return;
-    const a = agents().find((x) => x.id === id);
+    const a = エージェントs().find((x) => x.id === id);
     const prov = a?.provider || cfg().defaultProvider || providerList()[0] || "";
     if (!a) return;
     if (id !== _prevModelAgent) {
       _prevModelAgent = id;
-      // sync provider to the newly selected agent's provider
+      // sync provider to the newly selected エージェント's provider
       if (untrack(() => modelProvider()) !== prov) {
         setModelProvider(prov);
         loadModels(prov);
@@ -316,9 +316,9 @@ export default function App() {
       // clear stale draft only on session switch, not on every poll
       if (untrack(() => modelDraft())) setModelDraft("");
     } else {
-      // same agent — keep user's draft/provider edits intact; only
+      // same エージェント — keep user's draft/provider edits intact; only
       // re-sync if the server's provider changed externally and the user
-      // isn't actively editing (draft empty means not mid-type)
+      // isn't アクティブly editing (draft empty means not mid-type)
       const curProv = untrack(() => modelProvider());
       const curDraft = untrack(() => modelDraft());
       if (!curDraft && curProv !== prov) {
@@ -398,7 +398,7 @@ export default function App() {
   // A finish() turn often streams REASONING-ONLY (empty text) — the live
   // buffer then shows a 💭 thinking bubble that outlives the run: nothing
   // else arrives to overwrite it, and the refresh-path cleanup only runs on
-  // unrelated events. The agent's status is the ground truth: the moment it
+  // unrelated events. The エージェント's status is the ground truth: the moment it
   // leaves running/waiting, any leftover live buffer is dead and must go.
   // (Reload "fixes" it today only because the buffer is memory-only.)
   createEffect(() => {
@@ -441,17 +441,17 @@ export default function App() {
   // on. Re-sync once on return: jump to the tail iff the reader was still
   // following when they left. Re-armed on every session switch.
 
-  // Pending echoes must clear at EXACTLY the moment the ⏳ queue badge clears:
+  // Pending echoes must clear at EXACTLY the moment the ⏳ キュー badge clears:
   // both mean "the model has consumed the message". The badge counts
   // snapshot().pendingPrompts, which drops the instant drainPendingPrompts()
-  // moves the queue into this.messages — so reconcile against that count
+  // moves the キュー into this.messages — so reconcile against that count
   // instead of waiting for every prompt-delivered note to arrive over WS (the
   // badge and the echo visibly disagreed during that gap).
   createEffect(() => {
-    const queued = sel()?.pendingPrompts ?? 0;
+    const キューd = sel()?.pendingPrompts ?? 0;
     setPendingMsgs((list) => {
-      if (queued >= list.length) return list;
-      return list.slice(0, queued); // newest entries were consumed by the model
+      if (キューd >= list.length) return list;
+      return list.slice(0, キューd); // newest entries were consumed by the model
     });
   });
   createEffect(() => {
@@ -470,10 +470,10 @@ export default function App() {
     document.addEventListener("visibilitychange", onVisible);
     onCleanup(() => document.removeEventListener("visibilitychange", onVisible));
   });
-  const sel = createMemo(() => agents().find((a) => a.id === selected()));
+  const sel = createMemo(() => エージェントs().find((a) => a.id === selected()));
   // prompt being edited → edit-prompt fork dialog. SETTLED user prompts only:
-  // a pending (queued, not yet delivered) message offers ✕ cancel instead —
-  // editing implies the model may have seen it, which is false while queued.
+  // a pending (キューd, not yet delivered) message offers ✕ cancel instead —
+  // editing implies the model may have seen it, which is false while キューd.
   const [editing, setEditing] = createSignal<{ eventId: string; text: string } | null>(null);
   // ask_user calls that already have their tool_result in the log — used to
   // disable the option buttons (answering twice sent duplicate prompts)
@@ -492,7 +492,7 @@ export default function App() {
   /* ---------- notification center (in-app only; push later) ---------- */
   type Notif = {
     id: string;
-    agentId: string;
+    エージェントId: string;
     kind: "progress" | "finish" | "question" | "error";
     title: string;
     body: string;
@@ -502,7 +502,7 @@ export default function App() {
     eventId?: string;
   };
   const [notifs, setNotifs] = createSignal<Notif[]>([]);
-  // hide ghost sessions (workspace missing on disk) — a toggle,
+  // hide ghost sessions (ワークスペース missing on disk) — a toggle,
   // because they still hold history the operator may need
   const [hideGhosts, setHideGhosts] = createSignal(
     localStorage.getItem("teapot.hideGhosts") === "1",
@@ -512,22 +512,22 @@ export default function App() {
   /** mark all notifications from ONE session read — fired when the operator
    *  is following the timeline tail (they are, by definition, looking at the
    *  newest content those notifications point to) */
-  const markSessionRead = (agentId: string) => {
+  const markSessionRead = (エージェントId: string) => {
     setNotifs((list) => {
       let changed = false;
       const next = list.map((n) => {
-        if (n.read || n.agentId !== agentId) return n;
+        if (n.read || n.エージェントId !== エージェントId) return n;
         changed = true;
         return { ...n, read: true };
       });
       return changed ? next : list; // avoid identity churn on no-op runs
     });
   };
-  /** unread for one agent INCLUDING its whole sub-tree (subs, sub-subs…) */
-  const subtreeUnread = (agentId: string): number => {
-    let total = notifs().filter((n) => !n.read && n.agentId === agentId).length;
-    for (const child of agents()) {
-      if (child.parent === agentId)
+  /** unread for one エージェント INCLUDING its whole sub-tree (subs, sub-subs…) */
+  const subtreeUnread = (エージェントId: string): number => {
+    let total = notifs().filter((n) => !n.read && n.エージェントId === エージェントId).length;
+    for (const child of エージェントs()) {
+      if (child.parent === エージェントId)
         total += subtreeUnread(child.id);
     }
     return total;
@@ -539,12 +539,12 @@ export default function App() {
     );
   };
   /** events worth telling the operator about, even on another session/tab */
-  const maybeNotify = (agentId: string, ev: any) => {
-    const who = agents().find((a) => a.id === agentId)?.id ?? agentId;
+  const maybeNotify = (エージェントId: string, ev: any) => {
+    const who = エージェントs().find((a) => a.id === エージェントId)?.id ?? エージェントId;
     const eid = typeof ev.id === "string" ? ev.id : undefined;
     if (ev.type === "message" && ev.data?.final === true) {
       addNotif({
-        agentId,
+        エージェントId,
         kind: "finish",
         title: `${who} finished`,
         body: String(ev.data.content ?? "").slice(0, 300),
@@ -552,7 +552,7 @@ export default function App() {
       });
     } else if (ev.type === "question") {
       addNotif({
-        agentId,
+        エージェントId,
         kind: "question",
         title: `${who} asks a question`,
         body: String(ev.data.question ?? "").slice(0, 300),
@@ -560,7 +560,7 @@ export default function App() {
       });
     } else if (ev.type === "error") {
       addNotif({
-        agentId,
+        エージェントId,
         kind: "error",
         title: `${who} hit an error`,
         body: String(ev.data.message ?? "").slice(0, 300),
@@ -568,7 +568,7 @@ export default function App() {
       });
     } else if (ev.type === "progress") {
       addNotif({
-        agentId,
+        エージェントId,
         kind: "progress",
         title: `${who}: ${String(ev.data.doing ?? "progress")}`.slice(0, 120),
         body: [ev.data.recent && `recent: ${ev.data.recent}`, ev.data.next && `next: ${ev.data.next}`]
@@ -641,7 +641,7 @@ export default function App() {
   const chatEvents = createMemo(() => {
     const { consumed } = pairInfo();
     // Reasoning-only assistant turns (content empty, only 💭 reasoning) used
-    // to render as their own agent bubble between every pair of tool rows,
+    // to render as their own エージェント bubble between every pair of tool rows,
     // which also broke "consecutive bash" grouping. They now ride along with
     // the tool run: a reasoning-only turn is dropped when the nearest visible
     // row before it is a tool event — its thinking belongs to that action.
@@ -673,7 +673,7 @@ export default function App() {
       // paired tool results live inside their call's merged row
       if (e.type === "tool_result") return !consumed.has(e.id);
       // tool-call carrier turns have no visible payload — the ToolRow below
-      // already tells that story; an empty agent bubble is just noise
+      // already tells that story; an empty エージェント bubble is just noise
       if (e.type === "message") {
         const content = String(e.data?.content ?? "");
         // reasoning-only turn right after a tool result: the next tool row's
@@ -743,12 +743,12 @@ export default function App() {
     }
     // append optimistic echoes. An echo lives from SEND until its text enters
     // an LLM call payload — signalled by the prompt-delivered system_note
-    // (same promptId). The LOGGED prompt row appears much earlier (at enqueue
+    // (same promptId). The LOGGED prompt row appears much earlier (at enキュー
     // time), so "drop when logged" made the pending indicator flash for ~120ms
-    // and vanish while the message was still queued for the model.
+    // and vanish while the message was still キューd for the model.
     //
     // The logged prompt row of a NOT-YET-DELIVERED message must NOT render as
-    // a settled timeline row: it would show the queued text twice (a "sent"
+    // a settled timeline row: it would show the キューd text twice (a "sent"
     // row at its log position AND the pending echo at the bottom) and imply
     // the model already saw it. Until prompt-delivered arrives, the log row is
     // hidden and the pending echo alone represents the message.
@@ -778,7 +778,7 @@ export default function App() {
     // sits wherever the operator typed it, NOT where the model actually
     // consumed it. Re-sequence it to its prompt-delivered note's position so
     // the timeline reads in true context order: the message lands between the
-    // agent output that came before the delivery and the reply after it.
+    // エージェント output that came before the delivery and the reply after it.
     for (const e of visible) {
       if (e.type !== "prompt" || e.data?.source !== "user") continue;
       const pid = String((e.data as any)?.promptId ?? "");
@@ -843,8 +843,8 @@ export default function App() {
     onCleanup(() => window.removeEventListener("teapot:unauthorized", onUnauthorized));
   });
 
-  // operator task list draft — seeded per selected agent; while the user
-  // hasn't touched it, it follows server updates (the agent edits it too)
+  // operator task list draft — seeded per selected エージェント; while the user
+  // hasn't touched it, it follows server updates (the エージェント edits it too)
   const [todoDraft, setTodoDraft] = createSignal("");
   // false = rendered checklist (default), true = raw markdown editor
   const [todoViewMode, setTodoViewMode] = createSignal(false);
@@ -852,26 +852,26 @@ export default function App() {
   let todoSeededFor = "";
   createEffect(() => {
     const id = selected();
-    const serverTodo = agents().find((a) => a.id === id)?.todo ?? "";
+    const serverTodo = エージェントs().find((a) => a.id === id)?.todo ?? "";
     if (id && id !== todoSeededFor) {
       todoSeededFor = id;
       setTodoDirty(false);
       setTodoDraft(serverTodo);
     } else if (id && !todoDirty()) {
-      setTodoDraft(serverTodo); // stay current with agent-side set_todo edits
+      setTodoDraft(serverTodo); // stay current with エージェント-side set_todo edits
     }
   });
   const saveTodo = async () => {
     const notify = (document.getElementById("todo-notify") as HTMLInputElement)?.checked ?? true;
     if (!selected()) return;
     try {
-      await api(`/api/agents/${selected()}/todo`, {
+      await api(`/api/エージェントs/${selected()}/todo`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text: todoDraft(), notify }),
       });
       setTodoDirty(false);
-      flashHint(`tasks saved${notify && todoDraft().trim() ? " & notification queued" : ""}`);
+      flashHint(`タスクを保存しました${notify && todoDraft().trim() ? " & notification キューd" : ""}`);
       refreshAgents();
     } catch (ex) {
       flashHint(`save failed: ${(ex as Error).message}`);
@@ -892,33 +892,33 @@ export default function App() {
   });
 
   const refreshAgents = () =>
-    api("/api/agents")
+    api("/api/エージェントs")
       .then((d) => {
-        let agentSetChanged = false;
+        let エージェントSetChanged = false;
         setAgents((prev) => {
           // Reference-stabilize snapshots: the server re-serializes every
-          // agent on each poll, and new object identities made Solid re-run
+          // エージェント on each poll, and new object identities made Solid re-run
           // EVERY expression bound to sel()*.x (the "whole panel flashes"
           // effect). Reuse the previous object when the snapshot is equal,
           // so unchanged panels skip their fine-grained updates entirely.
           const prevById = new Map(prev.map((a) => [a.id, a]));
-          if (prev.length !== (d.agents ?? []).length) agentSetChanged = true;
-          return (d.agents ?? []).map((a: Agent) => {
+          if (prev.length !== (d.エージェントs ?? []).length) エージェントSetChanged = true;
+          return (d.エージェントs ?? []).map((a: Agent) => {
             const p = prevById.get(a.id);
-            if (!p) agentSetChanged = true;
+            if (!p) エージェントSetChanged = true;
             return p && JSON.stringify(p) === JSON.stringify(a) ? p : a;
           });
         });
-        // the session index is ONE request for ALL agents — only needed when
-        // the agent set actually changes, not on every poll
-        if (agentSetChanged) void refreshSessionIndex();
+        // the session index is ONE request for ALL エージェントs — only needed when
+        // the エージェント set actually changes, not on every poll
+        if (エージェントSetChanged) void refreshSessionIndex();
       })
       .catch(() => {});
   const refreshMetrics = () => api("/api/metrics").then(setMetrics).catch(() => {});
   // scheduled (cron) tasks — shown in the right panel so "what runs when" is legible
   const [tasks, setTasks] = createSignal<any[]>([]);
   const loadTasks = () => api("/api/tasks").then((d) => setTasks(d.tasks)).catch(() => {});
-  const agentTasks = (id: string | null) => tasks().filter((t) => t.agent === id);
+  const エージェントTasks = (id: string | null) => tasks().filter((t) => t.エージェント === id);
 
   // sidebar tree: subs hang under their parent, collapsible per parent
   const [collapsedSubs, setCollapsedSubs] = createSignal<Set<string>>((() => {
@@ -934,15 +934,15 @@ export default function App() {
     localStorage.setItem("teapot.collapsed", JSON.stringify([...next]));
   };
   const treeRows = createMemo(() => {
-    // 👻 toggle: drop ghost sessions (workspace missing on disk) from the
+    // 👻 toggle: drop ghost sessions (ワークスペース missing on disk) from the
     // sidebar tree entirely — they are noise once you know about them
-    const list = hideGhosts() ? agents().filter((a) => !a.workspaceMissing) : agents();
+    const list = hideGhosts() ? エージェントs().filter((a) => !a.ワークスペースMissing) : エージェントs();
     const byParent = new Map<string, Agent[]>();
     const roots: Agent[] = [];
     for (const a of list) {
       const isSub = a.parent && list.some((p) => p.id === a.parent);
       if (isSub) {
-        // newest sub first — freshly spawned agents are what you want to see
+        // newest sub first — freshly spawned エージェントs are what you want to see
         if (!byParent.has(a.parent!)) byParent.set(a.parent!, []);
         byParent.get(a.parent!)!.unshift(a);
       } else roots.push(a);
@@ -971,8 +971,8 @@ export default function App() {
   // WITHIN one log, so a cross-session key collision made stabilize() return
   // another session's row — the "teapot-b3c520e0 shows teapot-3's timeline" bug.
   function cacheKey(ev: { id: string }): string {
-    // scoped by the internal session id (the log), NOT the agent id — agent
-    // ids are recycled across incarnations, so two incarnations of one agent
+    // scoped by the internal session id (the log), NOT the エージェント id — エージェント
+    // ids are recycled across incarnations, so two incarnations of one エージェント
     // must not share cache entries either
     return `${timelineId() || (selected() ?? "?")}:${ev.id}`;
   }
@@ -1069,7 +1069,7 @@ export default function App() {
       const tid = timelineId();
       const sessQ = tid && tid !== id ? `&session=${encodeURIComponent(tid)}` : "";
       const res = await api(
-        `/api/agents/${id}/events?limit=300&before=${encodeURIComponent(oldest.id)}${sessQ}${bf ? `&branch=${encodeURIComponent(bf)}` : ""}`,
+        `/api/エージェントs/${id}/events?limit=300&before=${encodeURIComponent(oldest.id)}${sessQ}${bf ? `&branch=${encodeURIComponent(bf)}` : ""}`,
       );
       const page: Ev[] = res.events ?? [];
       if (page.length === 0) { setOlderDone(true); return; }
@@ -1106,11 +1106,11 @@ export default function App() {
       const needsBranches = genAtStart !== lastBranchesGen || !branches().length;
       const sessQ = tid && tid !== id ? `&session=${encodeURIComponent(tid)}` : "";
       const [ev, br, sk] = await Promise.all([
-        api(`/api/agents/${id}/events?limit=300${sessQ}${bf ? `&branch=${encodeURIComponent(bf)}` : ""}`),
+        api(`/api/エージェントs/${id}/events?limit=300${sessQ}${bf ? `&branch=${encodeURIComponent(bf)}` : ""}`),
         needsBranches
-          ? api(`/api/agents/${id}/branches`)
+          ? api(`/api/エージェントs/${id}/branches`)
           : Promise.resolve({ branches: branches() }),
-        api(`/api/agents/${id}/skills`).catch(() => ({ skills: [] })),
+        api(`/api/エージェントs/${id}/skills`).catch(() => ({ skills: [] })),
       ]);
       if (needsBranches) lastBranchesGen = genAtStart;
       // stale iff a DIFFERENT session is now selected or a switch happened
@@ -1127,7 +1127,7 @@ export default function App() {
       setEventsTotal(ev.total ?? ev.events.length);
       setBranches(br.branches);
       setAgentSkills(sk.skills ?? []);
-    } catch { /* agent may be gone */ }
+    } catch { /* エージェント may be gone */ }
   }
 
   function feedEl() { return document.querySelector(".feed"); }
@@ -1160,9 +1160,9 @@ export default function App() {
   const timelineCache = new Map<string, { events: Ev[]; total: number; at: number }>();
   const TIMELINE_CACHE_MAX = 6;
 
-  /** newest internal session id owned by an agent (server returns newest first) */
-  function latestSessionOf(agentId: string): string | null {
-    return sessionsByAgent().get(agentId)?.[0] ?? null;
+  /** newest internal session id owned by an エージェント (server returns newest first) */
+  function latestSessionOf(エージェントId: string): string | null {
+    return sessionsByAgent().get(エージェントId)?.[0] ?? null;
   }
 
   async function select(id: string, push = true) {
@@ -1173,8 +1173,8 @@ export default function App() {
     // bump FIRST so any in-flight fetch for the previous session lands on a
     // dead generation and is dropped instead of overwriting this one's rows
     feedGeneration++;
-    // resolve the agent's CURRENT internal session id — the timeline handle.
-    // Falls back to the agent id for brand-new agents whose first session dir
+    // resolve the エージェント's CURRENT internal session id — the timeline handle.
+    // Falls back to the エージェント id for brand-new エージェントs whose first session dir
     // isn't listed yet (the events fetch still works: same log).
     if (!sessionsByAgent().size) void refreshSessionIndex(); // first select before index landed
     let tid = latestSessionOf(id) ?? id;
@@ -1192,7 +1192,7 @@ export default function App() {
       // which read as "the old conversation showing up in the new session"
       setEvents([]);
       evCache.clear(); // event ids are per-log (e1, e2…) — never share across sessions
-      // NOTE: live buffers are per-agent — leaving a session must NOT drop its
+      // NOTE: live buffers are per-エージェント — leaving a session must NOT drop its
       // streaming bubble; the map keeps every session's stream independently.
       setCompacting(null);
       setMissed(0);
@@ -1211,7 +1211,7 @@ export default function App() {
     setLoadingOlder(false);
     setPendingMsgs([]);
     localStorage.setItem("teapot.session", id);
-    navigate(tid, push); // URL carries the internal session id, not the agent id
+    navigate(tid, push); // URL carries the internal session id, not the エージェント id
     // HYDRATE from cache first: rows paint immediately (no blank flash), and
     // loadEvents below merges in whatever happened since. Cached events are
     // re-stabilized into evCache so reference identity survives the switch.
@@ -1226,11 +1226,11 @@ export default function App() {
       });
     }
     // lazy sessions sit in "stopped" until touched — clicking loads them
-    api(`/api/agents/${id}/load`, { method: "POST" }).then(refreshAgents).catch(() => {});
+    api(`/api/エージェントs/${id}/load`, { method: "POST" }).then(refreshAgents).catch(() => {});
     await loadEvents(id, tid);
     if (selected() !== id) return; // another switch won while we were loading
     // the freshly fetched snapshot is authoritative: a compaction may be
-    // mid-flight on this session (missed bus events while another tab/agent
+    // mid-flight on this session (missed bus events while another tab/エージェント
     // was selected) — seed the banner from ctx.compacting
     setCompacting(
       sel()?.ctx?.compacting ? { phase: String(sel()!.ctx!.compacting) } : null,
@@ -1267,21 +1267,21 @@ export default function App() {
     // event types that don't change the feed — refreshing on every one of
     // these would hammer /events several times per turn for nothing
     const FEED_IRRELEVANT = new Set(["state", "usage", "session_start"]);
-    // (live buffers are keyed per agent in liveByAgent — see the App body)
+    // (live buffers are keyed per エージェント in liveByAgent — see the App body)
     ws.onmessage = (m) => {
       const msg = JSON.parse(m.data);
       if (msg.kind === "ping" || msg.kind === "pong") return;
       if (msg.kind === "llm-delta") {
-        // update THIS agent's buffer only — other sessions keep streaming in
+        // update THIS エージェント's buffer only — other sessions keep streaming in
         // the background and their bubble must survive session switches
         setLiveByAgent((prev) => {
           const m = new Map(prev);
-          m.set(msg.agentId, { text: msg.text ?? "", reasoning: msg.reasoning ?? "", at: Date.now() });
+          m.set(msg.エージェントId, { text: msg.text ?? "", reasoning: msg.reasoning ?? "", at: Date.now() });
           return m;
         });
         // thinking-timer bookkeeping (selected session only): start the clock
         // when reasoning arrives with no text yet; reset once real text flows
-        if (msg.agentId === selected()) {
+        if (msg.エージェントId === selected()) {
           const r = String(msg.reasoning ?? "");
           const t = String(msg.text ?? "");
           if (r && !t) {
@@ -1293,22 +1293,22 @@ export default function App() {
         return;
       }
       if (msg.kind === "compaction-progress") {
-        if (msg.agentId !== selected()) return;
+        if (msg.エージェントId !== selected()) return;
         if (msg.phase === "done") setCompacting(null);
         else setCompacting({ phase: msg.phase, summarized: msg.summarized });
         // the phase banner rides on top of the feed — no refresh needed until
         // the compaction event itself lands
         return;
       }
-      // agent-update now carries the fresh snapshot: apply it directly —
-      // no GET /api/agents round-trip per event
-      if (msg.kind === "agent-update" && msg.snapshot) {
+      // エージェント-update now carries the fresh snapshot: apply it directly —
+      // no GET /api/エージェントs round-trip per event
+      if (msg.kind === "エージェント-update" && msg.snapshot) {
         setAgents((prev) => {
           const i = prev.findIndex((a) => a.id === msg.snapshot.id);
           const next = msg.snapshot;
           if (i === -1) return [...prev, next];
           // content-equal → keep the OLD object: a new identity for unchanged
-          // data re-ran every expression bound to that agent and was the last
+          // data re-ran every expression bound to that エージェント and was the last
           // source of the rare right-panel flash
           const cur = prev[i]!;
           const same =
@@ -1326,22 +1326,22 @@ export default function App() {
         // drops the echo. BOTH fall through so the feed refresh below picks up
         // the logged prompt row in the same pass (the old early-returns made
         // the "sent ✓" echo linger until some unrelated event refreshed).
-        if (et === "system_note" && ed.event === "prompt-delivered" && msg.agentId === selected()) {
+        if (et === "system_note" && ed.event === "prompt-delivered" && msg.エージェントId === selected()) {
           // delivery = the message now belongs to the log row. REMOVE the echo
           // from the list (the display filter alone kept it forever, and any
           // filter regression resurfaced it as a duplicate row).
           setPendingMsgs((list) => list.filter((p) => p.promptId !== ed.promptId));
-        } else if (et === "system_note" && ed.event === "prompt-cancelled" && msg.agentId === selected()) {
+        } else if (et === "system_note" && ed.event === "prompt-cancelled" && msg.エージェントId === selected()) {
           setPendingMsgs((list) => list.filter((p) => p.promptId !== ed.promptId));
         }
         if (FEED_IRRELEVANT.has(et) && !NOTE_FEED_TYPES.has(et)) return;
         // notify the operator about notable moments from ANY session — that's
         // the point of the notification center (progress / finish / question /
         // error), even when the timeline isn't being watched
-        maybeNotify(msg.agentId, msg.event);
+        maybeNotify(msg.エージェントId, msg.event);
         // only the affected session's feed needs reloading — other sessions'
         // timelines are fetched on switch, not eagerly
-        if (msg.event?.agent !== selected()) return;
+        if (msg.event?.エージェント !== selected()) return;
       }
       // hidden tab: defer feed work until the tab is visible again — layout
       // is paused anyway, so fetching + re-rendering now is pure waste. The
@@ -1353,7 +1353,7 @@ export default function App() {
       if (timer) return;
       // tool results land here one by one; a 400ms debounce made each bash
       // completion feel lost ("switch away and back shows it") — the fetch
-      // itself is mtime-cached and cheap, so tighten the cadence instead
+      // itself is mtime-cached and cヒープ, so tighten the cadence instead
       timer = setTimeout(runFeedRefresh, 120);
     };
     pendingRefresh = false;
@@ -1365,7 +1365,7 @@ export default function App() {
           // compare last event ID, not array length: the /events window is
           // capped at 300, so long sessions have a CONSTANT length and a
           // length check never noticed new events (leaving the live bubble
-          // blinking forever after the agent went idle)
+          // blinking forever after the エージェント went idle)
           const beforeId = events().at(-1)?.id;
           const beforeTotal = eventsTotal();
           const fetchStartedAt = Date.now();
@@ -1376,7 +1376,7 @@ export default function App() {
             // fetch start) raced the stream's natural pauses and cleared a
             // LIVE bubble mid-reply — the "output flashes, then disappears"
             // bug. Compare content instead: drop the buffer only when the
-            // log caught up with it (or the agent went idle with nothing new).
+            // log caught up with it (or the エージェント went idle with nothing new).
             const buf = live();
             if (buf && buf.text) {
               // covered = ANY persisted assistant message already carries this
@@ -1394,7 +1394,7 @@ export default function App() {
                 );
               if (covered) setLive(null);
             } else if (buf && !buf.text) {
-              // reasoning-only buffer with no text: drop as soon as the agent
+              // reasoning-only buffer with no text: drop as soon as the エージェント
               // stops streaming (no text will ever persist for it)
               if (sel()?.status !== "running") setLive(null);
             }
@@ -1431,7 +1431,7 @@ export default function App() {
 
   /* ---------- /session/<internalId> routing ---------- */
   // The URL carries the INTERNAL session id (the chat.jsonl's directory
-  // name), not the agent id: agent ids are recycled across incarnations,
+  // name), not the エージェント id: エージェント ids are recycled across incarnations,
   // internal session ids never are — deep links stay valid forever.
   const pathId = () => decodeURIComponent(location.pathname.split("/")[2] ?? "");
   function navigate(sessionId: string, push = true) {
@@ -1441,7 +1441,7 @@ export default function App() {
   }
   window.addEventListener("popstate", () => {
     const sid = pathId();
-    // resolve the internal id to its owning agent and open THAT agent's tab;
+    // resolve the internal id to its owning エージェント and open THAT エージェント's tab;
     // the timeline itself is fetched by ?session=<internalId> in loadEvents
     const owner = masterSessionIndex().get(sid);
     if (owner && owner !== selected()) select(owner, false);
@@ -1470,8 +1470,8 @@ export default function App() {
       if (editing()) { setEditing(null); return; }
       const s = sel();
       if (s?.status === "running") {
-        // Claude-Code-style: Esc interrupts the running agent
-        api(`/api/agents/${s.id}/stop`, { method: "POST" }).then(refreshAgents);
+        // Claude-Code-style: Esc interrupts the running エージェント
+        api(`/api/エージェントs/${s.id}/stop`, { method: "POST" }).then(refreshAgents);
         return;
       }
       if (showRight() && window.innerWidth <= 1100) setShowRight(false);
@@ -1504,7 +1504,7 @@ export default function App() {
     localStorage.setItem("teapot.term", next ? "1" : "0");
   };
 
-  type TermTab = { key: string; agentId: string; title: string };
+  type TermTab = { key: string; エージェントId: string; title: string };
   type TermSession = {
     el: HTMLDivElement;
     term: any;
@@ -1526,7 +1526,7 @@ export default function App() {
   const paneHosts: (HTMLDivElement | null)[] = [null, null];
 
   /** the tab currently shown in the focused pane */
-  const activeTab = () =>
+  const アクティブTab = () =>
     termTabs()[focusedPane() === 0 ? paneL() : paneR()] ?? null;
 
   function focusTab(i: number) {
@@ -1552,19 +1552,19 @@ export default function App() {
 
   const addFromSelected = () => addTab();
 
-  function addTab(agentId?: string) {
-    const who = agentId ?? selected();
+  function addTab(エージェントId?: string) {
+    const who = エージェントId ?? selected();
     if (!who) return;
-    const perAgent = termTabs().filter((t) => t.agentId === who).length;
+    const perAgent = termTabs().filter((t) => t.エージェントId === who).length;
     if (perAgent >= 10) {
-      flashHint(`max 10 shells per agent (${who}) — that's already a lot`);
+      flashHint(`max 10 shells per エージェント (${who}) — that's already a lot`);
       return;
     }
     const n = termTabs().length + 1;
     const tab: TermTab =
       perAgent === 0
-        ? { key: `${who}`, agentId: who, title: who }
-        : { key: `${who}#${perAgent + 1}`, agentId: who, title: `${who}·${perAgent + 1}` };
+        ? { key: `${who}`, エージェントId: who, title: who }
+        : { key: `${who}#${perAgent + 1}`, エージェントId: who, title: `${who}·${perAgent + 1}` };
     setTermTabs((list) => [...list, tab]);
     // land in the focused pane (swap if the other pane shows it already)
     if (focusedPane() === 0) setPaneL(termTabs().length); else setPaneR(termTabs().length);
@@ -1614,7 +1614,7 @@ export default function App() {
       t.loadAddon(f);
       t.open(el);
       const proto = location.protocol === "https:" ? "wss://" : "ws://";
-      const w = new WebSocket(`${proto}${location.host}/api/agents/${tab.agentId}/term${wsTokenQuery()}`);
+      const w = new WebSocket(`${proto}${location.host}/api/エージェントs/${tab.エージェントId}/term${wsTokenQuery()}`);
       w.onmessage = (m) => {
         const msg = JSON.parse(m.data);
         if (msg.kind === "data") t.write(msg.data);
@@ -1695,20 +1695,20 @@ export default function App() {
     });
   });
 
-  // opening the drawer ensures a shell for the selected agent
+  // opening the drawer ensures a shell for the selected エージェント
   createEffect(() => {
     if (!termOpen()) return;
     const id = selected();
     if (!id) return;
-    if (!termTabs().some((t) => t.agentId === id) && termTabs().length === 0) addTab(id);
-    else if (!termTabs().some((t) => t.agentId === id)) {
-      // the selected agent has no tab YET (other agents own all tabs).
+    if (!termTabs().some((t) => t.エージェントId === id) && termTabs().length === 0) addTab(id);
+    else if (!termTabs().some((t) => t.エージェントId === id)) {
+      // the selected エージェント has no tab YET (other エージェントs own all tabs).
       // The old code tried focusTab(findIndex→-1) and silently did nothing,
-      // leaving the pane stuck on "no shell here" or another agent's shell.
+      // leaving the pane stuck on "no shell here" or another エージェント's shell.
       addTab(id);
     } else {
-      // its tab exists — focus it in the active pane
-      const i = termTabs().findIndex((t) => t.agentId === id);
+      // its tab exists — focus it in the アクティブ pane
+      const i = termTabs().findIndex((t) => t.エージェントId === id);
       if (i >= 0) focusTab(i);
     }
   });
@@ -1767,16 +1767,16 @@ export default function App() {
   onMount(() => {
     loadCfg();
     refreshAgents().then(async () => {
-      // deep link: /session/<internalId> routes to its owning agent —
-      // fall back to a raw agent id (old bookmarks) → last session → first
+      // deep link: /session/<internalId> routes to its owning エージェント —
+      // fall back to a raw エージェント id (old bookmarks) → last session → first
       await refreshSessionIndex();
       const want = pathId();
       const owner = want ? masterSessionIndex().get(want) : undefined;
       const initial =
-        (owner ? agents().find((a) => a.id === owner) : undefined) ??
-        agents().find((a) => a.id === want && !masterSessionIndex().has(want)) ??
-        agents().find((a) => a.id === localStorage.getItem("teapot.session")) ??
-        agents()[0];
+        (owner ? エージェントs().find((a) => a.id === owner) : undefined) ??
+        エージェントs().find((a) => a.id === want && !masterSessionIndex().has(want)) ??
+        エージェントs().find((a) => a.id === localStorage.getItem("teapot.session")) ??
+        エージェントs()[0];
       if (initial) select(initial.id, false);
     });
     refreshMetrics();
@@ -1792,14 +1792,14 @@ export default function App() {
 
   const SLASH_COMMANDS = [
     { cmd: "/start", desc: "start working toward the goal" },
-    { cmd: "/stop", desc: "interrupt the running agent" },
+    { cmd: "/stop", desc: "interrupt the running エージェント" },
     { cmd: "/fork", desc: "branch the conversation here" },
-    { cmd: "/goal", desc: "/goal <text> — set goal & notify the agent" },
+    { cmd: "/goal", desc: "/goal <テキスト> — 目標を設定しエージェントに通知" },
     { cmd: "/compact", desc: "force a context compaction now" },
     { cmd: "/skill", desc: "/skill <name> — force-load a skill and follow it" },
   ];
 
-  // @mentions: personas spawn sub-agents, agent ids target existing ones
+  // @mentions: personas spawn sub-エージェントs, エージェント ids target existing ones
   const [personas, setPersonas] = createSignal<{ key: string; label: string }[]>([]);
   const loadPersonas = () => api("/api/personas").then((d) => setPersonas(d.personas)).catch(() => {});
   const [mentionFork, setMentionFork] = createSignal(false);
@@ -1811,10 +1811,10 @@ export default function App() {
     const q = mentionQuery();
     if (q === null) return [];
     const list = [
-      ...personas().map((p) => ({ key: p.key, label: `${p.label} — spawns a sub-agent`, kind: "persona" as const })),
-      ...agents()
+      ...personas().map((p) => ({ key: p.key, label: `${p.label} — spawns a sub-エージェント`, kind: "persona" as const })),
+      ...エージェントs()
         .filter((a) => a.id !== selected())
-        .map((a) => ({ key: a.id, label: `${a.status} — send directly`, kind: "agent" as const })),
+        .map((a) => ({ key: a.id, label: `${a.status} — send directly`, kind: "エージェント" as const })),
     ];
     return list.filter((x) => x.key.toLowerCase().startsWith(q));
   };
@@ -1827,10 +1827,10 @@ export default function App() {
   };
 
   // unified suggestions: slash commands, then /skill argument completion
-  // (skill names come from the selected agent's roots via /api/agents/:id/skills)
+  // (skill names come from the selected エージェント's roots via /api/エージェントs/:id/skills)
   type Suggest = { insert: string; title: string };
   const NO_ARG_COMMANDS = new Set(["start", "stop", "fork", "compact"]);
-  const [agentSkills, setAgentSkills] = createSignal<{ name: string; description: string }[]>([]);
+  const [エージェントSkills, setAgentSkills] = createSignal<{ name: string; description: string }[]>([]);
   const [cmdIdx, setCmdIdx] = createSignal(-1);
   const suggestions = (): Suggest[] => {
     const d = draft();
@@ -1852,7 +1852,7 @@ export default function App() {
       return rows.map((c) => ({ insert: c.cmd + " ", title: c.desc }));
     }
     if (cmdName === "skill") {
-      let rows = agentSkills().filter((s) => s.name.toLowerCase().startsWith(argPart.toLowerCase()));
+      let rows = エージェントSkills().filter((s) => s.name.toLowerCase().startsWith(argPart.toLowerCase()));
       // a single exact match means the name is complete — stop suggesting so
       // the following Enter dispatches /skill instead of re-selecting
       if (rows.length === 1 && rows[0]!.name.toLowerCase() === argPart.toLowerCase()) return [];
@@ -1913,7 +1913,7 @@ export default function App() {
     if (!id) return;
     const images = pendingImages();
     try {
-      const r = await api(`/api/agents/${id}/prompt`, {
+      const r = await api(`/api/エージェントs/${id}/prompt`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text, start: true, ...(images.length ? { images } : {}) }),
@@ -1947,17 +1947,17 @@ export default function App() {
     const text = draft().trim();
     if (!id || !text) return;
 
-    // @mentions: persona → spawn sub-agent; agent id → direct message
+    // @mentions: persona → spawn sub-エージェント; エージェント id → direct message
     if (text.startsWith("@")) {
       const sp = text.indexOf(" ");
       const name = (sp === -1 ? text.slice(1) : text.slice(1, sp)).toLowerCase();
       const arg = sp === -1 ? "" : text.slice(sp + 1).trim();
       const isPersona = personas().some((p) => p.key.toLowerCase() === name);
-      const knownAgent = agents().some((a) => a.id.toLowerCase() === name);
+      const knownAgent = エージェントs().some((a) => a.id.toLowerCase() === name);
       try {
         if (isPersona) {
           if (!arg) { flashHint(`usage: @${name} <task>`); return; }
-          const r = await api(`/api/agents/${selected()}/spawn`, {
+          const r = await api(`/api/エージェントs/${selected()}/spawn`, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ persona: name, task: arg, context: mentionFork() ? "fork" : "none" }),
@@ -1966,7 +1966,7 @@ export default function App() {
           refreshAgents(); saveDraft("");
         } else if (knownAgent) {
           if (!arg) { flashHint(`usage: @${name} <message>`); return; }
-          await api(`/api/agents/${encodeURIComponent(name)}/prompt`, {
+          await api(`/api/エージェントs/${encodeURIComponent(name)}/prompt`, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ text: arg, start: true }),
@@ -2014,7 +2014,7 @@ export default function App() {
     const id = selected();
     if (!id) return;
     const post = (p: string, body?: unknown) =>
-      api(`/api/agents/${id}${p}`, {
+      api(`/api/エージェントs/${id}${p}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
@@ -2025,12 +2025,12 @@ export default function App() {
       else if (name === "fork") { await post("/fork", {}); await select(id); }
       else if (name === "compact") {
         const r: any = await post("/compact");
-        flashHint(r?.ran ? "context compacted" : "nothing to compact yet");
+        flashHint(r?.ran ? "コンテキストを圧縮しました" : "nothing to compact yet");
       }
       else if (name === "goal") {
-        if (!arg) { flashHint("usage: /goal <text>"); return; }
+        if (!arg) { flashHint("使い方: /goal <テキスト>"); return; }
         await post("/goal", { text: arg, notify: true });
-        flashHint("goal saved & notification queued");
+        flashHint("目標を保存し通知をキューに追加しました");
       }
       else if (name === "skill") {
         if (!arg) { flashHint("usage: /skill <name>"); return; }
@@ -2040,7 +2040,7 @@ export default function App() {
         flashHint(`skill "${arg}" dispatched`);
       }
       else {
-        flashHint(`unknown command "${name}" — /start /stop /fork /goal /skill /compact`);
+        flashHint(`不明なコマンド "${name}" — /start /stop /fork /goal /skill /compact`);
       }
     } catch (ex) {
       flashHint(`/${name} failed: ${(ex as Error).message}`);
@@ -2048,13 +2048,13 @@ export default function App() {
   };
 
   // The right panel's scroll position used to reset whenever a control button
-  // (▶ start / ■ stop / goal save…) refreshed the agents: content inside was
+  // (▶ start / ■ stop / goal save…) refreshed the エージェントs: content inside was
   // rebuilt and the browser clamped scrollTop. Keep the offset and restore it
-  // on every repaint triggered by an agents update.
+  // on every repaint triggered by an エージェントs update.
   let rightbarEl: HTMLDivElement | undefined;
   let rightbarTop = 0;
   createEffect(() => {
-    agents(); // re-arm on every agents update (incl. start/stop refreshes)
+    エージェントs(); // re-arm on every エージェントs update (incl. start/stop refreshes)
     // double rAF: the first frame applies Solid's DOM writes, the second
     // measures/restores AFTER layout settles — restoring too early let the
     // browser clamp scrollTop to the OLD height and the panel visibly jumped
@@ -2067,10 +2067,10 @@ export default function App() {
     });
   });
   const act = (path: string) =>
-    () => selected() && api(`/api/agents/${selected()}${path}`, { method: "POST" }).then(refreshAgents);
+    () => selected() && api(`/api/エージェントs/${selected()}${path}`, { method: "POST" }).then(refreshAgents);
 
   // Goal input as SIGNALS (not uncontrolled DOM): the right panel re-renders
-  // on every agent snapshot, and status flips / <Show> boundary crossings
+  // on every エージェント snapshot, and status flips / <Show> boundary crossings
   // rebuilt the form subtree — silently wiping half-typed goals mid-input.
   const [goalDraft, setGoalDraft] = createSignal("");
   const [goalVerifyDraft, setGoalVerifyDraft] = createSignal("");
@@ -2093,7 +2093,7 @@ export default function App() {
     e.preventDefault();
     if (!selected() || !goalDraft().trim()) return;
     try {
-      await api(`/api/agents/${selected()}/goal`, {
+      await api(`/api/エージェントs/${selected()}/goal`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -2143,30 +2143,30 @@ export default function App() {
     <div class={"layout" + (showRight() ? "" : " right-hidden")}>
       {/* ---------- sidebar ---------- */}
       <nav class="sidebar">
-        <div class="agent-list">
+        <div class="エージェント-list">
           <For each={treeRows()}>
             {({ a, depth }) => (
               <div
-                class={"agent-item" + (a.id === selected() ? " sel" : "") + (depth > 0 ? " sub-row" : "")}
+                class={"エージェント-item" + (a.id === selected() ? " sel" : "") + (depth > 0 ? " sub-row" : "")}
                 style={depth > 0 ? `padding-left:${10 + depth * 14}px` : ""}
                 onclick={() => select(a.id)}
-                title={a.parent ? `sub-agent of @${a.parent}` : undefined}
+                title={a.parent ? `sub-エージェント of @${a.parent}` : undefined}
               >
-                <Show when={agents().some((x) => x.parent === a.id)} fallback={<span class="caret-spacer" />}>
+                <Show when={エージェントs().some((x) => x.parent === a.id)} fallback={<span class="caret-spacer" />}>
                   <span
                     class="caret"
-                    title={collapsedSubs().has(a.id) ? "expand sub-agents" : "collapse sub-agents"}
+                    title={collapsedSubs().has(a.id) ? "expand sub-エージェントs" : "collapse sub-エージェントs"}
                     onclick={(e: MouseEvent) => { e.stopPropagation(); toggleCollapse(a.id); }}
                   >{collapsedSubs().has(a.id) ? "▸" : "▾"}</span>
                 </Show>
                 <span class={`dot ${a.status}`} />
                 <span
-                  class={a.workspaceMissing ? " ghost" : ""}
-                  title={a.workspaceMissing ? `workspace not found on disk (${a.workspace}) — it will be created when this session runs` : undefined}
+                  class={a.ワークスペースMissing ? " ghost" : ""}
+                  title={a.ワークスペースMissing ? `ワークスペース not found on disk (${a.ワークスペース}) — it will be created when this session runs` : undefined}
                 >{a.id}</span>
-                {a.workspaceMissing ? <span class="ghosttag" title="workspace missing">cloud_off</span> : null}
+                {a.ワークスペースMissing ? <span class="ghosttag" title="ワークスペースなし">cloud_off</span> : null}
                 <Show when={subtreeUnread(a.id) > 0}>
-                  <span class="notifbadge" title={`${subtreeUnread(a.id)} unread notification${subtreeUnread(a.id) > 1 ? "s" : ""} (including sub-agents)`}>
+                  <span class="notifbadge" title={`${subtreeUnread(a.id)} unread notification${subtreeUnread(a.id) > 1 ? "s" : ""} (including sub-エージェントs)`}>
                     🔔{subtreeUnread(a.id)}
                   </span>
                 </Show>
@@ -2174,12 +2174,12 @@ export default function App() {
                     busy parent doesn't look idle with its subtree hidden */}
                 <Show when={collapsedSubs().has(a.id)}>
                   {(() => {
-                    const kids = agents().filter((x) => x.parent === a.id);
+                    const kids = エージェントs().filter((x) => x.parent === a.id);
                     const running = kids.filter((k) => k.status === "running" || k.status === "waiting").length;
                     return kids.length > 0 ? (
                       <span
                         class={"subcount" + (running > 0 ? " live" : "")}
-                        title={`${kids.length} sub-agent${kids.length > 1 ? "s" : ""} (${running} active)`}
+                        title={`${kids.length} sub-エージェント${kids.length > 1 ? "s" : ""} (${running} アクティブ)`}
                       >
                         jigsaw {kids.length}{running > 0 ? ` · ▶${running}` : ""}
                       </span>
@@ -2187,10 +2187,10 @@ export default function App() {
                   })()}
                 </Show>
                 <Show when={a.parent}><span class="subtag">jigsaw</span></Show>
-                <Show when={agentTasks(a.id).length > 0}>
-                  <span class="mini-cron" title={agentTasks(a.id).map((t) => `${t.id}: ${t.schedule}`).join("\n")}>schedule</span>
+                <Show when={エージェントTasks(a.id).length > 0}>
+                  <span class="mini-cron" title={エージェントTasks(a.id).map((t) => `${t.id}: ${t.schedule}`).join("\n")}>スケジュール</span>
                 </Show>
-                <Show when={a.goal.status === "done"}><span title="goal done">check</span></Show>
+                <Show when={a.goal.status === "done"}><span title="目標完了">check</span></Show>
               </div>
             )}
           </For>
@@ -2280,23 +2280,23 @@ export default function App() {
             </button>
             <IconBtn
               icon="visibility_off"
-              active={hideGhosts()}
-              title={hideGhosts() ? "show ghost sessions again (workspace missing on disk)" : "hide ghost sessions (their workspace directory no longer exists)"}
+              アクティブ={hideGhosts()}
+              title={hideGhosts() ? "show ghost sessions again (ワークスペース missing on disk)" : "hide ghost sessions (their ワークスペース directory no longer exists)"}
               onClick={(e) => {
                 e.stopPropagation();
                 const next = !hideGhosts();
                 setHideGhosts(next);
                 localStorage.setItem("teapot.hideGhosts", next ? "1" : "0");
                 // keep the selection valid when the current session gets hidden
-                if (next && selected() && sel()?.workspaceMissing) {
-                  const firstVisible = agents().find((a) => !a.workspaceMissing);
+                if (next && selected() && sel()?.ワークスペースMissing) {
+                  const firstVisible = エージェントs().find((a) => !a.ワークスペースMissing);
                   if (firstVisible) select(firstVisible.id);
                 }
               }}
             />
-            <IconBtn icon="add" title="new agent" onClick={() => { loadCfg(); setShowNew(true); }} />
-            <IconBtn icon="palette" title="themes" onClick={() => setShowThemes(!showThemes())} />
-            <IconBtn icon="settings" title="settings" onClick={() => { loadCfg(); setShowCfg(true); }} />
+            <IconBtn icon="add" title="新規エージェント" onClick={() => { loadCfg(); setShowNew(true); }} />
+            <IconBtn icon="palette" title="テーマ" onClick={() => setShowThemes(!showThemes())} />
+            <IconBtn icon="settings" title="設定" onClick={() => { loadCfg(); setShowCfg(true); }} />
           </div>
           <div class="brand-row">
             <div class="brand">
@@ -2306,8 +2306,8 @@ export default function App() {
           </div>
           <div class="metrics">
             <Show when={metrics()}>
-              master rss {metrics().rssMb}MB · heap {metrics().heapUsedMb}MB<br />
-              load1 {metrics().loadavg1} · up {Math.floor(metrics().uptimeSec / 60)}m
+              マスターRSS {metrics().rssMb}MB · ヒープ {metrics().ヒープUsedMb}MB<br />
+              負荷1 {metrics().loadavg1} · up {Math.floor(metrics().uptimeSec / 60)}分
             </Show>
           </div>
         </div>
@@ -2315,22 +2315,22 @@ export default function App() {
 
       {/* ---------- channel ---------- */}
       <section class="channel">
-        <Show when={sel()} fallback={<div style="display:grid;place-items:center;height:100%" class="muted">select an agent</div>}>
+        <Show when={sel()} fallback={<div style="display:grid;place-items:center;height:100%" class="muted">select an エージェント</div>}>
           <header class="chan-head">
             <span class="hash">#</span>
             <span class="title">{sel()!.id}</span>
             <span class={`badge ${sel()!.status}`}>{sel()!.status}</span>
             <Show when={(sel()!.pendingPrompts ?? 0) > 0}>
               <span
-                class="badge queued"
-                title={`${sel()!.pendingPrompts ?? 0} message${(sel()!.pendingPrompts ?? 0) > 1 ? "s" : ""} from you waiting in the queue. They will be handed to the model at its next turn boundary — the timeline shows them as "pending (queued)…" until then, and each can be withdrawn with close cancel while it's still queued.`}
+                class="badge キューd"
+                title={`${sel()!.pendingPrompts ?? 0} message${(sel()!.pendingPrompts ?? 0) > 1 ? "s" : ""} from you waiting in the キュー. They will be handed to the model at its next turn boundary — the timeline shows them as "pending (キューd)…" until then, and each can be withdrawn with close cancel while it's still キューd.`}
               >
-                ⏳ {sel()!.pendingPrompts} of yours queued
+                ⏳ {sel()!.pendingPrompts} of yours キューd
               </span>
             </Show>
-            <Show when={agentTasks(sel()!.id).length > 0}>
-              <span class="badge cron" title={`scheduled tasks:\n${agentTasks(sel()!.id).map((t) => `${t.schedule} · ${t.id}${t.forked ? " (forked)" : ""}`).join("\n")}`}>
-                schedule {agentTasks(sel()!.id).length}
+            <Show when={エージェントTasks(sel()!.id).length > 0}>
+              <span class="badge cron" title={`scheduled tasks:\n${エージェントTasks(sel()!.id).map((t) => `${t.schedule} · ${t.id}${t.forked ? " (forked)" : ""}`).join("\n")}`}>
+                schedule {エージェントTasks(sel()!.id).length}
               </span>
             </Show>
             <span class="sub">
@@ -2340,8 +2340,8 @@ export default function App() {
               <Show when={sel()!.statusReason}>
                 <span class="sub" title={sel()!.statusReason}>ℹ</span>
               </Show>
-              <IconBtn icon="keyboard" title="terminal (t)" onClick={toggleTerm} />
-              <IconBtn icon="view_sidebar" title="toggle details panel (d)" onClick={toggleRight} />
+              <IconBtn icon="keyboard" title="ターミナル (t)" onClick={toggleTerm} />
+              <IconBtn icon="view_sidebar" title="詳細パネル切替 (d)" onClick={toggleRight} />
             </span>
           </header>
 
@@ -2401,13 +2401,13 @@ export default function App() {
                     res={pairInfo().resFor.get(e.id)}
                     onOption={(t) => void sendText(t)}
                     answeredIds={answeredQuestionIds()}
-                    agentActive={sel()?.status === "running" || sel()?.status === "waiting"}
+                    エージェントActive={sel()?.status === "running" || sel()?.status === "waiting"}
                     onResize={() => { if (atBottom()) requestAnimationFrame(() => scrollBottom(true)); }}
                     onCancel={
                       e.data?.pending && e.data?.promptId && e.data?.sent !== true
                         ? () => {
                             const pid = String(e.data.promptId);
-                            api(`/api/agents/${selected()}/prompt/cancel`, {
+                            api(`/api/エージェントs/${selected()}/prompt/cancel`, {
                               method: "POST",
                               headers: { "content-type": "application/json" },
                               body: JSON.stringify({ promptId: pid }),
@@ -2442,7 +2442,7 @@ export default function App() {
                   <div class="avatar" style="background:#5865f233;border:1px solid #5865f266">chat_bubble</div>
                   <div class="msg-body">
                     <div class="msg-head">
-                      <span class="author" style="color:var(--acc)">agent</span>
+                      <span class="author" style="color:var(--acc)">エージェント</span>
                       <span class="ts">streaming…</span>
                     </div>
                     <Show when={liveReasoning()}>
@@ -2498,23 +2498,23 @@ export default function App() {
                   <For each={termTabs()}>
                     {(t, i) => (
                       <span
-                        class={"termtab" + (focusedPane() === 0 && paneL() === i() ? " active" : "") + (splitView() && focusedPane() === 1 && paneR() === i() ? " active" : "")}
+                        class={"termtab" + (focusedPane() === 0 && paneL() === i() ? " アクティブ" : "") + (splitView() && focusedPane() === 1 && paneR() === i() ? " アクティブ" : "")}
                         onclick={() => focusTab(i())}
                         title={`${t.title} — click to show in focused pane`}
                       >
                         keyboard {t.title}
-                        <button class="tabx" onclick={(e) => { e.stopPropagation(); closeTab(i()); }} title="close this shell">✕</button>
+                        <button class="tabx" onclick={(e) => { e.stopPropagation(); closeTab(i()); }} title="このシェルを閉じる">✕</button>
                       </span>
                     )}
                   </For>
-                  <IconBtn icon="plus" title="new shell in this workspace" onClick={addFromSelected} />
+                  <IconBtn icon="plus" title="このワークスペースで新しいシェル" onClick={addFromSelected} />
                 </div>
                 <div style="display:flex;gap:4px;align-items:center">
                   <span class="muted mono" style="flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-                    {activeTab() ? agents().find((a) => a.id === activeTab()!.agentId)?.workspace.split("/").filter(Boolean).pop() : sel()?.workspace}
+                    {アクティブTab() ? エージェントs().find((a) => a.id === アクティブTab()!.エージェントId)?.ワークスペース.split("/").filter(Boolean).pop() : sel()?.ワークスペース}
                   </span>
                   <IconBtn icon="swap" title={splitView() ? "single pane" : "split panes (50/50)"} onClick={toggleSplit} />
-                  <IconBtn icon="arrow_down" title="hide the terminal (shells keep running; reopen with t) — close individual shells with their ✕ tab buttons" onClick={toggleTerm} />
+                  <IconBtn icon="arrow_down" title="ターミナルを非表示 (shells keep running; reopen with t) — close individual shells with their ✕ tab buttons" onClick={toggleTerm} />
                 </div>
               </div>
               <div class="termbody" classList={{ split: splitView() }}>
@@ -2546,7 +2546,7 @@ export default function App() {
                 <For each={suggestions()}>
                   {(s, i) => (
                     <div
-                      class={"cmdrow" + (i() === cmdIdx() ? " active" : "")}
+                      class={"cmdrow" + (i() === cmdIdx() ? " アクティブ" : "")}
                       title={s.title}
                       onclick={() => { saveDraft(s.insert); setCmdIdx(-1); }}
                     >
@@ -2643,7 +2643,7 @@ export default function App() {
               <Show when={draft().startsWith("@") && draft().includes(" ")}>
                 <label
                   class="forkchip"
-                  title="inherit the conversation prefix byte-exactly — the sub-agent's provider prefix cache starts warm"
+                  title="inherit the conversation prefix byte-exactly — the sub-エージェント's provider prefix cache starts warm"
                 >
                   <input type="checkbox" checked={mentionFork()} onchange={(e) => setMentionFork(e.currentTarget.checked)} />
                   fork ctx
@@ -2663,13 +2663,13 @@ export default function App() {
               >{composerMaximized() ? "fullscreen_exit" : "fullscreen"}</button>
               <IconBtn
                 icon="attach_file"
-                title="attach images (or paste them straight into the box)"
+                title="画像を追加 (or paste them straight into the box)"
                 onClick={() => document.getElementById("composer-file")?.click()}
               />
               <Show when={pendingImages().length}>
                 <span class="muted" style="font-size:11.5px;white-space:nowrap">image {pendingImages().length}</span>
               </Show>
-              <button type="submit">send</button>
+              <button type="submit">送信</button>
               {/* hidden input lives here so the attach button can trigger it */}
               <input
                 id="composer-file"
@@ -2685,7 +2685,7 @@ export default function App() {
             </form>
             <div class="hint">
               {flash() ||
-                "enter send · shift+enter newline · ↑↓ sessions · / commands & focus · t terminal · d panel · esc interrupt · messages sent while the agent works queue up and land at the next turn boundary"}
+                "enter send · shift+enter newline · ↑↓ sessions · / commands & focus · t terminal · d panel · esc interrupt · messages sent while the エージェント works キュー up and land at the next turn boundary"}
             </div>
           </div>
         </Show>
@@ -2698,23 +2698,23 @@ export default function App() {
         onscroll={(e) => { rightbarTop = (e.currentTarget as HTMLDivElement).scrollTop; }}
       >
         <Show when={sel()}>
-          <h3 title="identity + storage locations for this agent">🎛 session</h3>
+          <h3 title="identity + storage locations for this エージェント">🎛 session</h3>
           <div class="card sesscard">
-            <div class="sessrow"><span class="k">agent</span><b>{sel()!.id}</b><span class={`badge ${sel()!.status}`}>{sel()!.status}</span></div>
-            <div class="sessrow"><span class="k">workspace</span><span class="mono ellip" title={sel()!.workspace}>{sel()!.workspace}</span></div>
+            <div class="sessrow"><span class="k">エージェント</span><b>{sel()!.id}</b><span class={`badge ${sel()!.status}`}>{sel()!.status}</span></div>
+            <div class="sessrow"><span class="k">ワークスペース</span><span class="mono ellip" title={sel()!.ワークスペース}>{sel()!.ワークスペース}</span></div>
             <div class="sessrow"><span class="k">session</span><span class="mono">{sel()!.session}/{sel()!.branch}</span></div>
           </div>
 
-          {/* keyed by agent id: Solid re-runs the JSX expression on every
+          {/* keyed by エージェント id: Solid re-runs the JSX expression on every
               snapshot update, but <Show keyed> + primitive props keep the
-              FilesPanel subtree from re-rendering unless the agent changes */}
+              FilesPanel subtree from re-rendering unless the エージェント changes */}
           <Show when={sel()!.id} keyed fallback={null}>
             {(aid) => (
-              <FilesPanel agentId={aid} workspace={sel()!.workspace} />
+              <FilesPanel エージェントId={aid} ワークスペース={sel()!.ワークスペース} />
             )}
           </Show>
 
-          <h3 title="switch provider/model live — applies from the agent's next turn; the list shows context window & pricing from the provider">🧦 model</h3>
+          <h3 title="switch provider/model live — applies from the エージェント's next turn; the list shows context window & pricing from the provider">🧦 model</h3>
           <div class="modelbox">
             <select
               value={modelProvider()}
@@ -2736,13 +2736,13 @@ export default function App() {
                 <For each={models()}>{(m) => <option value={m.id} />}</For>
               </datalist>
               <button
-                title="apply to this session — takes effect from the agent's next turn"
+                title="apply to this session — takes effect from the エージェント's next turn"
                 onclick={async (e) => {
                   if (!selected()) return;
                   const btn = e.currentTarget as HTMLButtonElement;
                   btn.disabled = true;
                   try {
-                    await api(`/api/agents/${selected()}/model`, {
+                    await api(`/api/エージェントs/${selected()}/model`, {
                       method: "POST",
                       headers: { "content-type": "application/json" },
                       body: JSON.stringify({
@@ -2754,7 +2754,7 @@ export default function App() {
                           models().find((m) => m.id === (modelDraft().trim() || undefined))?.contextLength,
                       }),
                     });
-                    btn.textContent = "applied";
+                    btn.textContent = "適用済み";
                     refreshAgents();
                   } catch (ex) {
                     alert(`model switch failed: ${(ex as Error).message}`);
@@ -2762,7 +2762,7 @@ export default function App() {
                     setTimeout(() => { btn.textContent = "apply"; btn.disabled = false; }, 1200);
                   }
                 }}
-              >apply</button>
+              >適用</button>
             </div>
             <div class="meta">
               current: {sel()!.model}<Show when={models().length}> · {models().length} models loaded</Show>
@@ -2789,39 +2789,39 @@ export default function App() {
             >{sel()!.status === "running" ? "■ stop" : "▶ start"}</button>
             <button
               title="branch off the conversation here — try things without disturbing the main line"
-              onclick={() => api(`/api/agents/${sel()!.id}/fork`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }).then(() => select(sel()!.id))}
+              onclick={() => api(`/api/エージェントs/${sel()!.id}/fork`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }).then(() => select(sel()!.id))}
             >⑂ fork</button>
             <button onclick={async () => {
               const id = selected();
-              if (!id || !confirm(`remove agent ${id}? (log is kept)`)) return;
-              await api(`/api/agents/${id}`, { method: "DELETE" }).catch(() => {});
-              const rest = agents().filter((a) => a.id !== id);
+              if (!id || !confirm(`remove エージェント ${id}? (log is kept)`)) return;
+              await api(`/api/エージェントs/${id}`, { method: "DELETE" }).catch(() => {});
+              const rest = エージェントs().filter((a) => a.id !== id);
               setAgents(rest);
               if (rest[0]) select(rest[0].id);
               else { setSelected(null); setEvents([]); }
-              }} title="remove agent from teapot (session log stays on disk)">🗑 remove</button>
-              <Show when={agents().some((a) => a.parent === selected())}>
+              }} title="remove エージェント from teapot (session log stays on disk)">🗑 remove</button>
+              <Show when={エージェントs().some((a) => a.parent === selected())}>
                 <button
                   onclick={async () => {
                     if (!selected()) return;
-                    const r = await api(`/api/agents/${selected()}/stop-children`, { method: "POST" });
+                    const r = await api(`/api/エージェントs/${selected()}/stop-children`, { method: "POST" });
                     flashHint(`stopped: ${((r as any).stopped ?? []).join(", ") || "(none)"}`);
                     refreshAgents();
                   }}
-                  title="stop every sub-agent this agent spawned (descendants included)"
+                  title="stop every sub-エージェント this エージェント spawned (descendants included)"
                 >⏹ subs</button>
               </Show>
           </div>
           <div class="ctrlrow">
             <label
-              title="auto-continue fires after a round ONLY when all hold: ① this toggle is on ② a goal is set and its status is 'active' ③ the round ended cleanly (no error / not stopped). It stops when the goal is marked done, or if you press ■ stop. Sending any prompt also starts an idle agent regardless."
+              title="ラウンド後に自動継続が動作するのは次の条件をすべて満たす場合のみ when all hold: ① this toggle is on ② a goal is set and its status is 'アクティブ' ③ the round ended cleanly (no error / not stopped). It stops when the goal is marked done, or if you press ■ stop. Sending any prompt also starts an idle エージェント regardless."
             >
               <input
                 type="checkbox"
                 checked={sel()!.autoContinue ?? true}
                 onchange={(e) => {
                   if (!selected()) return;
-                  api(`/api/agents/${selected()}/auto-continue`, {
+                  api(`/api/エージェントs/${selected()}/auto-continue`, {
                     method: "POST",
                     headers: { "content-type": "application/json" },
                     body: JSON.stringify({ value: e.currentTarget.checked }),
@@ -2830,56 +2830,56 @@ export default function App() {
               />
               auto-continue
             </label>
-            <span class="muted">loops while goal is active · stops on done / stop</span>
+            <span class="muted">loops while goal is アクティブ · stops on done / stop</span>
           </div>
 
-          <h3 title="what the agent is working toward — auto-continue keeps looping while the status is 'active'">🎯 goal
+          <h3 title="エージェントの作業目標 — auto-continue keeps looping while the status is 'アクティブ'">🎯 goal
             <Show
               when={!!sel()!.goal.text.trim()}
-              fallback={<span class="badge" title="no goal set yet">no goal</span>}
+              fallback={<span class="badge" title="目標は未設定です">目標なし</span>}
             >
-              <span class={`badge ${sel()!.goal.status === "active" ? "running" : sel()!.goal.status}`}>{sel()!.goal.status}</span>
+              <span class={`badge ${sel()!.goal.status === "アクティブ" ? "running" : sel()!.goal.status}`}>{sel()!.goal.status}</span>
             </Show>
           </h3>
           <div class="statrow" style="margin-bottom:6px">
             <span class="k">status</span>
-            <For each={["active", "done", "paused"] as const}>
+            <For each={["アクティブ", "done", "paused"] as const}>
               {(s) => (
                 <button
                   // an EMPTY goal must not light up "▶ working": fresh
-                  // sessions store status:"active" by default, which made a
-                  // brand-new timeline look like the agent was already on it
+                  // sessions store status:"アクティブ" by default, which made a
+                  // brand-new timeline look like the エージェント was already on it
                   class={"goalstate" + (!!sel()!.goal.text.trim() && sel()!.goal.status === s ? ` on ${s}` : "")}
                   disabled={!!sel()!.goal.text.trim() && sel()!.goal.status === s}
                   title={
-                    s === "active"
-                      ? "agent keeps working toward the goal (with auto-continue)"
+                    s === "アクティブ"
+                      ? "エージェント keeps working toward the goal (with auto-continue)"
                       : s === "done"
                         ? "mark achieved — auto-continue stops"
-                        : "parked on purpose — resume by setting active again"
+                        : "parked on purpose — resume by setting アクティブ again"
                   }
                   onclick={() => {
                     if (!selected()) return;
-                    api(`/api/agents/${selected()}/goal`, {
+                    api(`/api/エージェントs/${selected()}/goal`, {
                       method: "POST",
                       headers: { "content-type": "application/json" },
                       body: JSON.stringify({ status: s }),
                     }).then(refreshAgents);
                   }}
-                >{s === "active" ? "▶ working" : s === "done" ? "done" : "paused"}</button>
+                >{s === "アクティブ" ? "▶ working" : s === "done" ? "done" : "paused"}</button>
               )}
             </For>
           </div>
           <Show
             when={sel()!.goal.text}
-            fallback={<div class="card muted">no goal yet — write one below and press save. Then ▶ start (or any message) sets it in motion.</div>}
+            fallback={<div class="card muted">目標が未設定 — 下のフォームに入力して保存してください. その後 ▶ 開始（またはメッセージ入力）で起動します。</div>}
           >
             <div class="card">
               <div class="content" innerHTML={renderMarkdown(String(sel()!.goal.text))} />
             </div>
             <Show when={sel()!.goal.verify}>
-              <div class="card verifycard" title="verification contract — finish(goalComplete=true) is audited against these requirements by an independent reviewer before the goal counts as done">
-                <div class="vtitle">🔍 verification contract</div>
+              <div class="card verifycard" title="検証 контракт — finish(goalComplete=true) is audited against these requirements by an independent reviewer before the goal counts as done">
+                <div class="vtitle">🔍 検証 контракт</div>
                 <div class="content" innerHTML={renderMarkdown(String(sel()!.goal.verify))} />
               </div>
             </Show>
@@ -2896,13 +2896,13 @@ export default function App() {
             </Show>
           </Show>
           <div class="muted" style="font-size:11px;margin-top:4px">
-            stored with the session · the agent reads it via get_goal() · auto-continue loops while status is "working" and stops when marked done
+            stored with the session · the エージェント reads it via get_goal() · auto-continue loops while status is "working" and stops when marked done
           </div>
           <form onsubmit={setGoal} style="display:flex;flex-direction:column;gap:6px;margin-top:8px;margin-bottom:6px">
             <textarea
               id="goal-input"
               rows={3}
-              placeholder="set new goal…"
+              placeholder="新しい目標を入力…"
               value={goalDraft()}
               oninput={(e) => { setGoalDraft(e.currentTarget.value); setGoalDirty(true); }}
               style="background:var(--bg-darkest);border:none;border-radius:6px;padding:6px 8px;color:var(--fg);font:inherit;width:100%;resize:vertical"
@@ -2910,8 +2910,8 @@ export default function App() {
             <textarea
               id="goal-verify-input"
               rows={2}
-              placeholder="verification contract (optional) — e.g. 'npm test passes; endpoint documented'. finish(goalComplete=true) is then audited against this."
-              title="pi-goal-x-style verification contract — an independent reviewer checks the agent's finish against these requirements"
+              placeholder="検証 контракт (optional) — e.g. 'npm test passes; endpoint documented'. finish(goalComplete=true) is then audited against this."
+              title="pi-goal-x-style 検証 контракт — an independent reviewer checks the エージェント's finish against these requirements"
               value={goalVerifyDraft()}
               oninput={(e) => { setGoalVerifyDraft(e.currentTarget.value); setGoalDirty(true); }}
               style="background:var(--bg-darkest);border:1px solid var(--bg-light);border-radius:6px;padding:6px 8px;color:var(--fg);font:inherit;font-size:12.5px;width:100%;resize:vertical"
@@ -2920,22 +2920,22 @@ export default function App() {
               <label
                 class="muted"
                 style="display:flex;align-items:center;gap:4px;font-size:11.5px;white-space:nowrap;cursor:pointer"
-                title="queue a harness prompt telling the agent about the new goal at its next turn boundary"
+                title="キュー a harness prompt telling the エージェント about the new goal at its next turn boundary"
               >
-                <input id="goal-notify" type="checkbox" checked={goalNotify()} onchange={(e) => setGoalNotify(e.currentTarget.checked)} /> notify agent
+                <input id="goal-notify" type="checkbox" checked={goalNotify()} onchange={(e) => setGoalNotify(e.currentTarget.checked)} /> notify エージェント
               </label>
-              <button type="submit" style="background:var(--acc);border:none;border-radius:6px;color:#fff;padding:4px 12px;cursor:pointer">save goal</button>
+              <button type="submit" style="background:var(--acc);border:none;border-radius:6px;color:#fff;padding:4px 12px;cursor:pointer">目標を保存</button>
             </div>
           </form>
 
-          <h3 title="todo.md — a shared checklist in the session dir. Write tasks like '- [ ] fix login'; the agent ticks them off via set_todo, you edit here. With notify on, it's told at its next turn boundary.">
+          <h3 title="todo.md — セッションディレクトリの共有チェックリスト. Write tasks like '- [ ] fix login'; the エージェント ticks them off via set_todo, you edit here. With notify on, it's told at its next turn boundary.">
             tasks
             <Show when={todoStats().total > 0}>
               <span class="badge" style={todoStats().done === todoStats().total ? "color:var(--ok)" : "color:var(--warn)"}>
                 {todoStats().done}/{todoStats().total} done
               </span>
             </Show>
-            <span class="muted" style="text-transform:none;letter-spacing:0">· shared checklist (you + agent)</span>
+            <span class="muted" style="text-transform:none;letter-spacing:0">· shared checklist (you + エージェント)</span>
           </h3>
           <Show when={todoStats().total > 0}>
             <div class="bartrack" style="margin-bottom:6px">
@@ -2962,7 +2962,7 @@ export default function App() {
                 setTodoDraft(e.currentTarget.value);
                 setTodoDirty(true);
               }}
-              title="shared with the agent — it may check items off via set_todo; your unsaved edits win until you save"
+              title="shared with the エージェント — it may check items off via set_todo; your unsaved edits win until you save"
               style="width:100%;background:var(--bg-darkest);border:none;border-radius:6px;padding:6px 8px;color:var(--fg);font-family:ui-monospace,Menlo,monospace;font-size:12.5px;resize:vertical"
             />
           </Show>
@@ -2975,34 +2975,34 @@ export default function App() {
             <label
               class="muted"
               style="display:flex;align-items:center;gap:4px;font-size:11.5px;white-space:nowrap;cursor:pointer"
-              title="queue a harness prompt telling the agent the task list changed"
+              title="キュー a harness prompt telling the エージェント the task list changed"
             >
-              <input id="todo-notify" type="checkbox" checked /> notify agent
+              <input id="todo-notify" type="checkbox" checked /> notify エージェント
             </label>
             <button
               onclick={saveTodo}
               style="background:var(--ok);border:none;border-radius:6px;color:#fff;padding:4px 12px;cursor:pointer"
-            >save tasks</button>
+            >タスクを保存</button>
           </div>
 
-          <h3 title="latest report_progress snapshot. The harness asks for one after real activity (time AND output gates); errors show under problems">progress</h3>
+          <h3 title="latest report_progress snapshot. The harness asks for one after real activity (time AND output gates); errors show under 問題">進捗</h3>
           <Show
             when={sel()!.latestProgress}
-            fallback={<div class="muted">none yet — the harness asks for a report after real activity, and the agent can report_progress anytime</div>}
+            fallback={<div class="muted">まだありません — ハーネスは実際の活動の後にレポートを要求します, and the エージェント can report_progress anytime</div>}
           >
             {(p) => (
               <div class="card prog">
                 <div class="progrow"><b>doing</b><span class="content inline-md" innerHTML={renderMarkdownCached(p().doing)} /></div>
                 <Show when={p().recent}><div class="progrow"><b>recent</b><span class="content inline-md" innerHTML={renderMarkdownCached(p().recent)} /></div></Show>
-                <Show when={p().problems}><div class="progrow warn"><b>problems</b><span class="content inline-md" innerHTML={renderMarkdownCached(p().problems)} /></div></Show>
-                <Show when={p().next}><div class="progrow"><b>next</b><span class="content inline-md" innerHTML={renderMarkdownCached(p().next)} /></div></Show>
+                <Show when={p().問題}><div class="progrow warn"><b>問題</b><span class="content inline-md" innerHTML={renderMarkdownCached(p().問題)} /></div></Show>
+                <Show when={p().next}><div class="progrow"><b>次へ</b><span class="content inline-md" innerHTML={renderMarkdownCached(p().next)} /></div></Show>
                 <Show when={p().goalStatus}><div class="progrow"><b>goal</b><span>{p().goalStatus}</span></div></Show>
                 <div class="meta muted">{relTime(p().ts)}</div>
               </div>
             )}
           </Show>
 
-          <h3 title="cumulative billed totals · the cached pill counts tokens served from the provider's prompt cache (far cheaper) · context bar turns orange ≥70% and red ≥85% of the model window">📊 runtime</h3>
+          <h3 title="cumulative billed totals · the cached pill counts tokens served from the provider's prompt cache (far cヒープer) · context bar turns orange ≥70% and red ≥85% of the model window">📊 runtime</h3>
           <div class="card runcard">
             <div class="statgrid">
               <div class="stat" title="LLM turns taken this session"><span>turns</span><b>{sel()!.stats.turns}</b></div>
@@ -3015,7 +3015,7 @@ export default function App() {
               <Show when={(sel()!.stats.cachedInputTokens ?? 0) > 0}>
                 <span
                   class="pill ok"
-                  title={`${fmtK(sel()!.stats.cachedInputTokens)} tokens were served from the provider's prompt cache — billed far cheaper than fresh input`}
+                  title={`${fmtK(sel()!.stats.cachedInputTokens)} tokens were served from the provider's prompt cache — billed far cヒープer than fresh input`}
                 >
                   ⚡ {(Math.round((sel()!.stats.cachedInputTokens / Math.max(1, sel()!.stats.inputTokens)) * 1000) / 10)}% cached
                 </span>
@@ -3046,8 +3046,8 @@ export default function App() {
                 // ALL derived values are memos: this callback used to run ONCE
                 // (unkeyed <Show> builds its children a single time), freezing
                 // pct/bar/labels at the first snapshot — the gauge then showed
-                // "0% of 1m" forever while the token count itself kept updating
-                // (that count is a JSX expression, so it stayed reactive).
+                // "0% of 1m" forever while the token count itself kept 更新中
+                // (that count is a JSX expression, so it stayed reアクティブ).
                 const ctxVals = createMemo(() => {
                   const cv = c;
                   const modelMeta = models().find((m) => m.id === sel()!.model);
@@ -3121,7 +3121,7 @@ export default function App() {
                           checked={sel()!.autoCompact !== false}
                           onchange={(e) => {
                             if (!selected()) return;
-                            api(`/api/agents/${selected()}/auto-compact`, {
+                            api(`/api/エージェントs/${selected()}/auto-compact`, {
                               method: "POST",
                               headers: { "content-type": "application/json" },
                               body: JSON.stringify({ value: e.currentTarget.checked }),
@@ -3159,21 +3159,21 @@ export default function App() {
             )}
           </For>
 
-          <h3>schedule <span class="muted" style="text-transform:none;letter-spacing:0">· cron tasks, all agents · edit in settings</span></h3>
+          <h3>schedule <span class="muted" style="text-transform:none;letter-spacing:0">· cronタスク（全エージェント）· 設定から編集</span></h3>
           <Show
             when={tasks().length > 0}
-            fallback={<div class="muted">no scheduled tasks — add them in settings ("scheduled tasks")</div>}
+            fallback={<div class="muted">定期タスクがありません — 設定から追加してください ("scheduled tasks")</div>}
           >
             <For each={tasks()}>
               {(t) => (
                 <div
-                  class={"sched-row" + (t.agent === selected() ? " cur" : "")}
-                  title={`${oneLine(t.prompt, 200)}\nclick to open #${t.agent}`}
-                  onclick={() => select(t.agent)}
+                  class={"sched-row" + (t.エージェント === selected() ? " cur" : "")}
+                  title={`${oneLine(t.prompt, 200)}\nclick to open #${t.エージェント}`}
+                  onclick={() => select(t.エージェント)}
                 >
                   <div class="sched-top">
                     <b>{t.id}</b>
-                    <span class="muted">@{t.agent}</span>
+                    <span class="muted">@{t.エージェント}</span>
                     <Show when={t.forked}><span title="runs on a forked branch so chatter stays off the main line">⑂</span></Show>
                   </div>
                   <div class="sched-meta mono">
@@ -3197,30 +3197,30 @@ export default function App() {
           notifications
           <span style="display:flex;gap:8px;align-items:center">
             <Show when={notifs().length > 0}>
-              <button class="editbtn" onclick={() => setNotifs([])}>clear all</button>
+              <button class="editbtn" onclick={() => setNotifs([])}>すべてクリア</button>
             </Show>
             <button class="iconbtn" title="close notifications" onclick={() => setShowNotifs(false)}>✕</button>
           </span>
         </div>
         <Show
           when={notifs().length > 0}
-          fallback={<div class="muted" style="padding:10px">nothing yet — progress, finishes, questions and errors will land here</div>}
+          fallback={<div class="muted" style="padding:10px">まだありません — 進捗、完了、質問、エラーがここに表示されます</div>}
         >
           <div class="notiflist">
             <For each={notifs()}>
               {(n) => (
                 <div
                   class={"notifitem " + n.kind + (n.read ? " read" : "")}
-                  title={`from ${n.agentId}`}
+                  title={`from ${n.エージェントId}`}
                   onclick={() => {
-                    // mark THIS one read, jump to its agent and scroll the
+                    // mark THIS one read, jump to its エージェント and scroll the
                     // timeline to the exact message that raised it
                     setNotifs((list) => list.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
-                    if (selected() !== n.agentId && agents().some((a) => a.id === n.agentId)) select(n.agentId);
+                    if (selected() !== n.エージェントId && エージェントs().some((a) => a.id === n.エージェントId)) select(n.エージェントId);
                     setShowNotifs(false);
                     if (n.eventId)
                       // wait for the timeline swap before scrolling
-                      setTimeout(() => jumpToEvent(n.eventId!), selected() !== n.agentId ? 350 : 60);
+                      setTimeout(() => jumpToEvent(n.eventId!), selected() !== n.エージェントId ? 350 : 60);
                   }}
                 >
                   
@@ -3269,7 +3269,7 @@ export default function App() {
                 ev.preventDefault();
                 const ta = document.getElementById("edit-text") as HTMLTextAreaElement;
                 try {
-                  await api(`/api/agents/${selected()}/edit-prompt`, {
+                  await api(`/api/エージェントs/${selected()}/edit-prompt`, {
                     method: "POST",
                     headers: { "content-type": "application/json" },
                     body: JSON.stringify({ eventId: ed().eventId, text: ta.value, tail: tail() }),
@@ -3292,7 +3292,7 @@ export default function App() {
                   </div>
                   <label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--fg)">
                     <input type="radio" name="tail" checked={tail() === "summarize"} onchange={() => setTail("summarize")} />
-                    summarize them into a note the agent can still read
+                    summarize them into a note the エージェント can still read
                   </label>
                   <label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--fg)">
                     <input type="radio" name="tail" checked={tail() === "discard"} onchange={() => setTail("discard")} />
@@ -3301,7 +3301,7 @@ export default function App() {
                 </div>
               </Show>
               <div style="display:flex;justify-content:flex-end;gap:8px">
-                <button type="button" onclick={() => setEditing(null)}>cancel</button>
+                <button type="button" onclick={() => setEditing(null)}>キャンセル</button>
                 <button type="submit" style="background:var(--acc);border:none;border-radius:6px;color:#fff;padding:6px 12px;cursor:pointer">
                   ⑂ fork & resend
                 </button>
@@ -3357,14 +3357,14 @@ function ThinkingTimer(props: { startedAt: number }) {
 
 /* ---------- per-tool timeline rendering ---------- */
 
-function ToolRow(props: { e: Ev; res?: Ev; agentActive?: boolean; onResize?: () => void }) {
+function ToolRow(props: { e: Ev; res?: Ev; エージェントActive?: boolean; onResize?: () => void }) {
   const e = props.e;
   const res = props.res;
-  // STALE-RUN GUARD: if the agent is no longer running, an unpaired tool_call
+  // STALE-RUN GUARD: if the エージェント is no longer running, an unpaired tool_call
   // cannot still be in flight (its result event was missed — e.g. logged while
   // the tab was hidden). Rendering it forever as "running…" was exactly that:
   // switching sessions and back "fixed" it because that reloaded the log.
-  const staleDone = !props.agentActive && !res;
+  const staleDone = !props.エージェントActive && !res;
   const d = e.data ?? {};
   const name = String(d.name ?? "tool");
   const out = () => (res ? String(res.data?.result ?? "") : "");
@@ -3409,7 +3409,7 @@ function ToolRow(props: { e: Ev; res?: Ev; agentActive?: boolean; onResize?: () 
       case "bash": {
         const cmd = argStr("command");
         const isBg = d.args?.background === true;
-        // background jobs return INSTANTLY (the shell keeps running) — a plain
+        // バックグラウンドジョブs return INSTANTLY (the shell keeps running) — a plain
         // "$ cmd · 12ms" row read as "finished immediately" and the job was
         // forgotten. Give them their own identity + the job id for bash_output.
         const bgJob = isBg ? (String(out()).match(/job (bg\d+)/)?.[1] ?? "") : "";
@@ -3417,7 +3417,7 @@ function ToolRow(props: { e: Ev; res?: Ev; agentActive?: boolean; onResize?: () 
         const timeoutHint = argStr("timeout_ms") ? ` · timeout ${Math.round(Number(argStr("timeout_ms")) / 1000)}s` : "";
         hint = res
           ? isBg
-            ? `background job${bgJob ? ` ${bgJob}` : ""}${timeoutHint}`
+            ? `バックグラウンドジョブ${bgJob ? ` ${bgJob}` : ""}${timeoutHint}`
             : `${res.data?.durationMs ?? "?"}ms${timeoutHint}`
           : null; // live elapsed renders in the summary (below)
         body = (
@@ -3557,7 +3557,7 @@ function ToolRow(props: { e: Ev; res?: Ev; agentActive?: boolean; onResize?: () 
         body = (
           <>
             {files.length ? <div class="meta">bundled: {files.join(", ")}</div> : null}
-            {res ? <div class="meta">{oneLine(out(), 160)} · {res.data?.durationMs}ms</div> : <div class="meta">saving…</div>}
+            {res ? <div class="meta">{oneLine(out(), 160)} · {res.data?.durationMs}ms</div> : <div class="meta">保存中…</div>}
           </>
         );
         break;
@@ -3627,7 +3627,7 @@ function rawOf(e: Ev): string {
   return "";
 }
 
-function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; onCancel?: () => void; onOption?: (text: string) => void; answeredIds?: Set<string>; agentActive?: boolean; onResize?: () => void }) {
+function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; onCancel?: () => void; onOption?: (text: string) => void; answeredIds?: Set<string>; エージェントActive?: boolean; onResize?: () => void }) {
   const e = props.e;
   const a = authorOf(e);
   // Group consecutive rows from the same ACTOR. The actor for tool events is
@@ -3636,7 +3636,7 @@ function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; on
   const actorKey = (ev: Ev): string => {
     const d = ev.data ?? {};
     if (ev.data?.actor) return `sub:${String(ev.data.actor)}`;
-    if (ev.type === "tool_call" || ev.type === "tool_result") return "agent-tools";
+    if (ev.type === "tool_call" || ev.type === "tool_result") return "エージェント-tools";
     if (ev.type === "prompt") return `src:${String(d.source ?? "user")}`;
     return `type:${ev.type}`;
   };
@@ -3662,7 +3662,7 @@ function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; on
     return <div class="divider-msg">🎯 goal {String(d.event ?? "")}: {what}</div>;
   }
   if (e.type === "todo") {
-    return <div class="divider-msg">tasks updated ({String(e.data?.by ?? "human")})</div>;
+    return <div class="divider-msg">タスクを更新しました ({String(e.data?.by ?? "human")})</div>;
   }
   if (e.type === "state") {
     if (e.data.from === e.data.to) return null;
@@ -3698,7 +3698,7 @@ function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; on
       const secs = Math.round(Number(e.data?.durationMs ?? 0) / 1000);
       return (
         <div class={"divider-msg" + (failed ? " err" : "")} title={String(e.data?.cmd ?? "")}>
-          {(failed ? "background job " : "done background job ") +
+          {(failed ? "バックグラウンドジョブ " : "done バックグラウンドジョブ ") +
             String(e.data?.jobId ?? "?") + " " +
             (failed ? `FAILED (exit ${String(e.data?.code ?? "?")})` : `finished (${secs}s)`)}
         </div>
@@ -3738,14 +3738,14 @@ function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; on
             <Show when={e.data?.actor}>
               <span class="actor">@{String(e.data.actor)}</span>
             </Show>
-            <span class="ts">{e.data?.pending ? "queued…" : fmtTs(e.ts)}</span>
+            <span class="ts">{e.data?.pending ? "キューd…" : fmtTs(e.ts)}</span>
             <span class="ts">{e.branch}</span>
             <Show when={props.onCancel}>
               <button
                 class="editbtn"
                 title="withdraw this message — it has not reached the model yet; the text goes back to the input box"
                 onclick={(ev: MouseEvent) => { ev.stopPropagation(); props.onCancel!(); }}
-              >cancel</button>
+              >キャンセル</button>
             </Show>
             {/* tool rows have no copyable message body — their command/output
                 buttons live inside ToolRow; rendering the header button anyway
@@ -3758,19 +3758,19 @@ function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; on
                 class="editbtn"
                 title="edit this prompt — forks the conversation here (later events are dropped or summarized)"
                 onclick={(ev: MouseEvent) => { ev.stopPropagation(); props.onEdit!(); }}
-              >edit</button>
+              >編集</button>
             </Show>
           </div>
         </Show>
 
-        <SwitchContent e={e} res={props.res} onOption={props.onOption} answeredIds={props.answeredIds} agentActive={props.agentActive} onResize={props.onResize} />
+        <SwitchContent e={e} res={props.res} onOption={props.onOption} answeredIds={props.answeredIds} エージェントActive={props.エージェントActive} onResize={props.onResize} />
       </div>
     </div>
   );
 }
 
 /**
- * Free-text answer row under an ask_user embed. The agent's reply arrives as
+ * Free-text answer row under an ask_user embed. The エージェント's reply arrives as
  * a regular user prompt, so this just routes through onOption — but it lets
  * the operator answer with something that wasn't among the offered options.
  */
@@ -3799,7 +3799,7 @@ function FreeTextAnswer(props: { answered: boolean; onOption?: (t: string) => vo
   );
 }
 
-function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => void; answeredIds?: Set<string>; agentActive?: boolean; onResize?: () => void }) {
+function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => void; answeredIds?: Set<string>; エージェントActive?: boolean; onResize?: () => void }) {
   const e = props.e;
   switch (e.type) {
     case "prompt": {
@@ -3828,7 +3828,7 @@ function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => vo
           </Show>
           <div class="content" innerHTML={renderMarkdownCached(String(e.data.content ?? ""))} />
           <Show when={e.data.interrupted}>
-            <div class="interrupted">interrupted — partial output kept</div>
+            <div class="interrupted">中断 — 部分的出力を保持</div>
           </Show>
           <Show when={e.data.final}>
             <div class="msgfoot"><CopyBtn text={String(e.data.content ?? "")} /><span>copy summary</span></div>
@@ -3836,7 +3836,7 @@ function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => vo
         </>
       );
     case "tool_call":
-      return <ToolRow e={e} res={props.res} agentActive={props.agentActive} onResize={props.onResize} />;
+      return <ToolRow e={e} res={props.res} エージェントActive={props.エージェントActive} onResize={props.onResize} />;
     case "tool_result": {
       // orphan result (its call scrolled past the 300-event window)
       const out = String(e.data.result);
@@ -3881,7 +3881,7 @@ function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => vo
               lists) — render them like progress embeds instead of dumping raw */}
           <div>question <div class="content inline-md" innerHTML={renderMarkdownCached(String(e.data?.question ?? ""))} /></div>
           <Show when={answered}>
-            <div class="meta" style="color:var(--ok)">✓ answered — continuing below</div>
+            <div class="meta" style="color:var(--ok)">✓ 回答済み — 下で続行</div>
           </Show>
           <Show when={opts.length > 0}>
             <div class="qopts">
@@ -3893,7 +3893,7 @@ function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => vo
                     onclick={() => {
                       const actor = e.data?.actor;
                       if (actor) {
-                        void api(`/api/agents/${encodeURIComponent(String(actor))}/prompt`, {
+                        void api(`/api/エージェントs/${encodeURIComponent(String(actor))}/prompt`, {
                           method: "POST",
                           headers: { "content-type": "application/json" },
                           body: JSON.stringify({ text: o, start: true }),
@@ -3919,8 +3919,8 @@ function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => vo
           <div>progress <div class="content inline-md" innerHTML={renderMarkdownCached(String(e.data.doing ?? ""))} /></div>
           <Show when={e.data.goalStatus}><div class="progrow"><b>goal</b><span>{String(e.data.goalStatus)}</span></div></Show>
           <Show when={e.data.recent}><div class="progrow"><b>recent</b><span class="content inline-md" innerHTML={renderMarkdownCached(String(e.data.recent))} /></div></Show>
-          <Show when={e.data.problems}><div class="progrow warn"><b>problems</b><span class="content inline-md" innerHTML={renderMarkdownCached(String(e.data.problems))} /></div></Show>
-          <Show when={e.data.next}><div class="progrow"><b>next</b><span class="content inline-md" innerHTML={renderMarkdownCached(String(e.data.next))} /></div></Show>
+          <Show when={e.data.問題}><div class="progrow warn"><b>問題</b><span class="content inline-md" innerHTML={renderMarkdownCached(String(e.data.問題))} /></div></Show>
+          <Show when={e.data.next}><div class="progrow"><b>次へ</b><span class="content inline-md" innerHTML={renderMarkdownCached(String(e.data.next))} /></div></Show>
         </div>
       );
     case "error":
@@ -3929,14 +3929,14 @@ function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => vo
       return (
         <details class="embed compaction">
           <summary>
-            <b>🗜 context compacted</b>
+            <b>🗜 コンテキストを圧縮しました</b>
             <span class="meta">
               {String(e.data.mode ?? "")} · {fmtK(Number(e.data.tokensBefore ?? 0))} → {fmtK(Number(e.data.tokensAfter ?? 0))} tok
               {" · "}{e.data.summarized ? `${e.data.summarized} summarized` : `${e.data.dropped} dropped`}
             </span>
           </summary>
           <Show when={e.data.summary}>
-            <div class="vtitle" style="margin-top:6px">what the agent kept</div>
+            <div class="vtitle" style="margin-top:6px">what the エージェント kept</div>
             <div class="content" innerHTML={renderMarkdownCached(String(e.data.summary))} />
           </Show>
         </details>
@@ -3993,14 +3993,14 @@ function IconBtn(props: {
   icon: string;
   title: string;
   onClick?: (e: MouseEvent) => void;
-  active?: boolean;
+  アクティブ?: boolean;
   class?: string;
   style?: string;
 }) {
   return (
     <button
       type="button"
-      class={"iconbtn" + (props.active ? " active" : "") + (props.class ? " " + props.class : "")}
+      class={"iconbtn" + (props.アクティブ ? " アクティブ" : "") + (props.class ? " " + props.class : "")}
       title={props.title}
       onclick={props.onClick}
       style={props.style}
@@ -4072,7 +4072,7 @@ function Modal(props: { title: string; onClose: () => void; children: any }) {
   );
 }
 
-/* ---------- new agent ---------- */
+/* ---------- new エージェント ---------- */
 function NewAgentModal(props: { providers: string[]; onClose: () => void; onCreated: (id: string) => void }) {
   const [dir, setDir] = createSignal("~");
   const [entries, setEntries] = createSignal<string[]>([]);
@@ -4097,21 +4097,21 @@ function NewAgentModal(props: { providers: string[]; onClose: () => void; onCrea
   const create = async (e: Event) => {
     e.preventDefault(); setErr("");
     try {
-      const r = await api("/api/agents", {
+      const r = await api("/api/エージェントs", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        // start: false → the agent stays lazy/stopped; the first prompt (or
-        // ▶ start) kicks off the loop, so no API call fires on an empty agent
-        body: JSON.stringify({ workspace: dir(), id: name(), provider: provider() || undefined, model: model() || undefined, start: false }),
+        // start: false → the エージェント stays lazy/stopped; the first prompt (or
+        // ▶ start) kicks off the loop, so no API call fires on an empty エージェント
+        body: JSON.stringify({ ワークスペース: dir(), id: name(), provider: provider() || undefined, model: model() || undefined, start: false }),
       });
-      props.onCreated(r.agent.id);
+      props.onCreated(r.エージェント.id);
     } catch (ex) { setErr(String((ex as Error).message)); }
   };
 
   return (
-    <Modal title="new agent" onClose={props.onClose}>
+    <Modal title="新規エージェント" onClose={props.onClose}>
       <form onsubmit={create} style="display:flex;flex-direction:column;gap:10px">
-        <label>workspace directory
+        <label>ワークスペース directory
           <div style="display:flex;gap:6px">
             <input type="text" class="w100 mono" value={dir()} oninput={(e) => setDir(e.currentTarget.value)} />
             <button type="button" onclick={() => browse(dir())}>go</button>
@@ -4124,7 +4124,7 @@ function NewAgentModal(props: { providers: string[]; onClose: () => void; onCrea
           }</For>
         </div>
         <div style="display:flex;gap:10px">
-          <label style="flex:1">agent name <input type="text" placeholder="(directory name)" value={name()} oninput={(e) => setName(e.currentTarget.value)} /></label>
+          <label style="flex:1">エージェント name <input type="text" placeholder="(ディレクトリ名)" value={name()} oninput={(e) => setName(e.currentTarget.value)} /></label>
           <label>provider
             <select value={provider()} onchange={(e) => setProvider(e.currentTarget.value)}>
               <For each={props.providers}>{(p) => <option>{p}</option>}</For>
@@ -4139,7 +4139,7 @@ function NewAgentModal(props: { providers: string[]; onClose: () => void; onCrea
   );
 }
 
-/* ---------- workspace file tree ---------- */
+/* ---------- ワークスペース file tree ---------- */
 
 interface TreeNode {
   name: string;
@@ -4191,12 +4191,12 @@ function mediaKindOf(path: string): MediaKind | null {
   return null;
 }
 
-/* ---------- per-agent file-panel UI state (remount-proof) ----------
+/* ---------- per-エージェント file-panel UI state (remount-proof) ----------
  * Preview popups / expanded dirs used to live INSIDE FilesPanel. Any parent
- * re-render that remounted the panel (agent snapshot churn re-evaluating the
+ * re-render that remounted the panel (エージェント snapshot churn re-evaluating the
  * keyed <Show>) wiped them: an open file popup vanished mid-read and the
- * tree collapsed. Keeping the state in a module-level store keyed by agent
- * makes it survive remounts; only a REAL agent switch starts fresh. */
+ * tree collapsed. Keeping the state in a module-level store keyed by エージェント
+ * makes it survive remounts; only a REAL エージェント switch starts fresh. */
 type FileUiState = {
   expanded: Set<string>;
   preview: { path: string; content: string; binary?: boolean; truncated?: boolean } | null;
@@ -4204,18 +4204,18 @@ type FileUiState = {
   viewMode: "code" | "edit" | "md" | "media";
 };
 const fileUi = new Map<string, FileUiState>();
-const fileUiFor = (agentId: string): FileUiState => {
-  let s = fileUi.get(agentId);
+const fileUiFor = (エージェントId: string): FileUiState => {
+  let s = fileUi.get(エージェントId);
   if (!s) {
     s = { expanded: new Set(), preview: null, media: null, viewMode: "code" };
-    fileUi.set(agentId, s);
+    fileUi.set(エージェントId, s);
   }
   return s;
 };
 
-function FilesPanel(props: { agentId: string; workspace: string }) {
-  const ui = fileUiFor(props.agentId);
-  // path → lazily fetched child listing ("" = workspace root)
+function FilesPanel(props: { エージェントId: string; ワークスペース: string }) {
+  const ui = fileUiFor(props.エージェントId);
+  // path → lazily fetched child listing ("" = ワークスペース root)
   const [kids, setKids] = createSignal<Map<string, TreeNode[]>>(new Map());
   const [expanded, setExpandedRaw] = createSignal<Set<string>>(ui.expanded);
   // every preview/media/mode write mirrors into `ui` so a remount of this
@@ -4285,7 +4285,7 @@ function FilesPanel(props: { agentId: string; workspace: string }) {
       if (path) qs.set("path", path);
       if (hidden) qs.set("hidden", "1");
       const r = await api(
-        `/api/agents/${props.agentId}/tree?${qs.toString()}`,
+        `/api/エージェントs/${props.エージェントId}/tree?${qs.toString()}`,
       );
       return parseEntries(path, r.entries ?? []);
     } catch (ex) {
@@ -4294,8 +4294,8 @@ function FilesPanel(props: { agentId: string; workspace: string }) {
     }
   }
 
-  // reset & load the root whenever a DIFFERENT agent is selected. The guard
-  // matters: agent snapshots update on every poll/event burst, and without it
+  // reset & load the root whenever a DIFFERENT エージェント is selected. The guard
+  // matters: エージェント snapshots update on every poll/event burst, and without it
   // each update cleared + re-fetched the whole tree (visible flicker and a
   // pointless /tree request per snapshot).
   // Merge fetched rows into the cache WITHOUT replacing row objects that are
@@ -4325,10 +4325,10 @@ function FilesPanel(props: { agentId: string; workspace: string }) {
 
   let kidsFor = "";
   createEffect(() => {
-    const id = props.agentId;
-    if (id === kidsFor) return; // same agent — keep the loaded tree as-is
+    const id = props.エージェントId;
+    if (id === kidsFor) return; // same エージェント — keep the loaded tree as-is
     kidsFor = id;
-    // a REAL agent switch starts a fresh view; a mere panel remount keeps
+    // a REAL エージェント switch starts a fresh view; a mere panel remount keeps
     // everything (state lives in `ui`, see fileUiFor above)
     setExpanded(new Set<string>());
     setPreview(null);
@@ -4393,7 +4393,7 @@ function FilesPanel(props: { agentId: string; workspace: string }) {
     }
     try {
       const r = await api(
-        `/api/agents/${props.agentId}/file?path=${encodeURIComponent(node.path)}`,
+        `/api/エージェントs/${props.エージェントId}/file?path=${encodeURIComponent(node.path)}`,
       );
       setMedia(null);
       setPreview({ path: node.path, content: r.content ?? "", binary: r.binary, truncated: r.truncated });
@@ -4413,7 +4413,7 @@ function FilesPanel(props: { agentId: string; workspace: string }) {
     if (!pv || saving()) return;
     setSaving(true);
     try {
-      await api(`/api/agents/${props.agentId}/file?path=${encodeURIComponent(pv.path)}`, {
+      await api(`/api/エージェントs/${props.エージェントId}/file?path=${encodeURIComponent(pv.path)}`, {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ content: editBuf(), baseContent: pv.content }),
@@ -4474,7 +4474,7 @@ function FilesPanel(props: { agentId: string; workspace: string }) {
     </>
   );
 
-  const wsName = () => props.workspace.split("/").filter(Boolean).pop() ?? props.workspace;
+  const wsName = () => props.ワークスペース.split("/").filter(Boolean).pop() ?? props.ワークスペース;
 
   /** refresh root + every expanded dir IN PLACE — mergeKids keeps unchanged
    * row objects, so the tree updates without flicker and an open file popup
@@ -4496,7 +4496,7 @@ function FilesPanel(props: { agentId: string; workspace: string }) {
 
   return (
     <>
-      <h3 style="display:flex;align-items:center;gap:6px" title="the agent's workspace — lazy-loaded, dotfiles hidden; click a folder to expand, a file to preview">
+      <h3 style="display:flex;align-items:center;gap:6px" title="the エージェント's ワークスペース — lazy-loaded, dotfiles hidden; click a folder to expand, a file to preview">
         🗂 files <span class="muted" style="text-transform:none;letter-spacing:0">· {wsName()}</span>
         <IconBtn
           class="filetoggle"
@@ -4517,11 +4517,26 @@ function FilesPanel(props: { agentId: string; workspace: string }) {
           title={showHidden() ? "dotfiles shown — click to hide" : "dotfiles hidden — click to show"}
           onClick={toggleHidden}
         />
+        <IconBtn
+          class="filetoggle"
+          icon="add"
+          title="新規ファイルを作成"
+          onClick={() => {
+            const name = prompt("New file name (relative to workspace):");
+            if (!name) return;
+            const p = "/" + name.replace(/^\//, "");
+            api(`/api/agents/${props.エージェントId}/file?path=${encodeURIComponent(p)}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ content: "", baseContent: null }),
+            }).then(() => void refreshTree()).catch((e: Error) => flashHint(`create failed: ${e.message}`));
+          }}
+        />
       </h3>
       <div class="filebox">
         <Show
           when={(kids().get("") ?? []).length > 0}
-          fallback={<div class="muted" style="padding:6px">{err() || "empty workspace"}</div>}
+          fallback={<div class="muted" style="padding:6px">{err() || "empty ワークスペース"}</div>}
         >
           <For each={(kids().get("") ?? []).filter(ignoreFilter)}>
             {(node) => row(node, 0)}
@@ -4541,7 +4556,7 @@ function FilesPanel(props: { agentId: string; workspace: string }) {
                     </Show>
                     <button class={viewMode() === "code" ? "on" : ""} onclick={() => { setViewMode("code"); if (!hlHtml()) startHighlighting({ path: pv().path, content: pv().content, truncated: pv().truncated }); }} title="syntax-highlighted source">{"</>"} code</button>
                     <Show when={isEditable(pv())}>
-                      <button class={viewMode() === "edit" ? "on" : ""} onclick={() => setViewMode("edit")} title="edit and save back to the workspace">edit</button>
+                      <button class={viewMode() === "edit" ? "on" : ""} onclick={() => setViewMode("edit")} title="edit and save back to the ワークスペース">編集</button>
                     </Show>
                   </div>
                   <Show
@@ -4575,7 +4590,7 @@ function FilesPanel(props: { agentId: string; workspace: string }) {
                         <div class="filerow-actions">
                           <span class="muted">{fmtK(editBuf().length)} bytes</span>
                           <button class="savebtn" disabled={saving() || editBuf() === pv().content} onclick={() => void saveFile()}>
-                            {saving() ? "saving…" : "save"}
+                            {saving() ? "保存中…" : "save"}
                           </button>
                         </div>
                       </div>
@@ -4588,12 +4603,12 @@ function FilesPanel(props: { agentId: string; workspace: string }) {
               <div class="mediapreview">
                 <Show when={media()!.kind === "image"} fallback={
                   <Show when={media()!.kind === "video"} fallback={
-                    <audio controls src={`/api/agents/${props.agentId}/raw?path=${encodeURIComponent(media()!.path)}`} />
+                    <audio controls src={`/api/エージェントs/${props.エージェントId}/raw?path=${encodeURIComponent(media()!.path)}`} />
                   }>
-                    <video controls src={`/api/agents/${props.agentId}/raw?path=${encodeURIComponent(media()!.path)}`} />
+                    <video controls src={`/api/エージェントs/${props.エージェントId}/raw?path=${encodeURIComponent(media()!.path)}`} />
                   </Show>
                 }>
-                  <img src={`/api/agents/${props.agentId}/raw?path=${encodeURIComponent(media()!.path)}`} alt={media()!.path.split("/").pop()} />
+                  <img src={`/api/エージェントs/${props.エージェントId}/raw?path=${encodeURIComponent(media()!.path)}`} alt={media()!.path.split("/").pop()} />
                 </Show>
                 <div class="meta muted">{media()!.kind} preview</div>
               </div>
@@ -4619,7 +4634,7 @@ function CodePreview(props: { path: string; content: string; html: string; pendi
         fallback={
           props.pending ? (
             <div class="muted" style="padding:8px;font-size:12px">
-              highlighting {props.path.split("/").pop()}…
+              ハイライト中 {props.path.split("/").pop()}…
             </div>
           ) : (
             <pre class="mono" style="max-height:62vh;overflow:auto;white-space:pre-wrap;margin:0">
@@ -4697,7 +4712,7 @@ function SetupWizard(props: { onDone: () => void }) {
   const [models, setModels] = createSignal<
     { id: string; contextLength?: number; pricing?: { prompt: number; completion: number }; modalities?: { input: string[]; output: string[] } }[]
   >([]);
-  const [workspace, setWorkspace] = createSignal("~/teapot-workspace");
+  const [ワークスペース, setWorkspace] = createSignal("~/teapot-ワークスペース");
   const [password, setPassword] = createSignal("");
   const [busy, setBusy] = createSignal(false);
   const [err, setErr] = createSignal("");
@@ -4762,7 +4777,7 @@ function SetupWizard(props: { onDone: () => void }) {
           baseUrl: baseUrl(),
           apiKey: apiKey() || undefined,
           model: model(),
-          workspace: workspace(),
+          ワークスペース: ワークスペース(),
           ...(password() ? { password: password() } : {}),
         }),
       });
@@ -4775,17 +4790,17 @@ function SetupWizard(props: { onDone: () => void }) {
   return (
     <div class="overlay" style={{ background: "var(--bg-darkest)" }}>
       <div class="modal" style="max-width:560px">
-        <div class="modal-head"><b>welcome to teapot</b></div>
+        <div class="modal-head"><b>teapotへようこそ</b></div>
         <p class="muted" style="margin:0 0 10px;font-size:13px">
           first run — pick an OpenAI-compatible provider and you're done.
-          everything below can be changed later in settings.
+          以下の設定は後から変更できます.
         </p>
         <form onsubmit={submit} style="display:flex;flex-direction:column;gap:12px">
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             {[...PROVIDER_PRESETS, CUSTOM_PRESET].map((p) => (
               <button
                 type="button"
-                class={"presetbtn" + (preset().key === p.key ? " active" : "")}
+                class={"presetbtn" + (preset().key === p.key ? " アクティブ" : "")}
                 title={p.hint || p.url}
                 onclick={() => pick(p)}
               >{p.label}</button>
@@ -4834,15 +4849,15 @@ function SetupWizard(props: { onDone: () => void }) {
             </div>
           </Show>
           <fieldset>
-            <legend>first agent</legend>
-            <label>workspace directory
-              <input type="text" class="w100 mono" value={workspace()} oninput={(e) => setWorkspace(e.currentTarget.value)} />
+            <legend>first エージェント</legend>
+            <label>ワークスペース directory
+              <input type="text" class="w100 mono" value={ワークスペース()} oninput={(e) => setWorkspace(e.currentTarget.value)} />
             </label>
             <label style="margin-top:4px" title="asks for this password when opening the UI or API from another machine — plain-HTTP LAN traffic is NOT encrypted">protect the API with a password? <input type="password" class="w100" value={password()} oninput={(e) => setPassword(e.currentTarget.value)} placeholder="(optional — LAN traffic is still plain HTTP)" /></label>
           </fieldset>
           <Show when={err()}><span style="color:var(--err);font-size:13px">{err()}</span></Show>
           <button type="submit" disabled={busy()} style="background:var(--acc);border:none;border-radius:8px;color:#fff;padding:9px 14px;font-weight:600;cursor:pointer">
-            {busy() ? "saving…" : "finish setup"}
+            {busy() ? "保存中…" : "finish setup"}
           </button>
         </form>
       </div>
@@ -4862,7 +4877,7 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
   const [minChars, setMinChars] = createSignal(props.cfg.progressMinChars ?? 4000);
   // empty input = DERIVED budget (75% of each model's window) — the old UI
   // always showed 96 and saved it back on every settings save, silently
-  // turning every agent into "manual override" at a fixed 96k that fit
+  // turning every エージェント into "manual override" at a fixed 96k that fit
   // neither 32k local models nor 1M-context ones. Null means "not set".
   const [ctxBudgetK, setCtxBudgetK] = createSignal<number | null>(
     props.cfg.contextTokenBudget != null ? Math.round(props.cfg.contextTokenBudget / 1000) : null,
@@ -4872,7 +4887,7 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
   const [tasks, setTasks] = createSignal<any[]>((props.cfg.tasks ?? []).map((t: any) => ({ ...t })));
   const [err, setErr] = createSignal("");
 
-  const agentIds = () => (props.cfg.agents ?? []).map((a: any) => a.id);
+  const エージェントIds = () => (props.cfg.エージェントs ?? []).map((a: any) => a.id);
 
   const saveProviders = (): Record<string, any> | null => {
     const out: Record<string, any> = {};
@@ -4890,9 +4905,9 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
     if (!providers) return;
     const cleanTasks = tasks()
       .filter((t) => t.id?.trim() || t.prompt?.trim())
-      .map((t, i) => ({ id: t.id?.trim() || `task-${i + 1}`, agent: t.agent, schedule: t.schedule, prompt: t.prompt, ...(t.forked ? { forked: true } : {}) }));
+      .map((t, i) => ({ id: t.id?.trim() || `task-${i + 1}`, エージェント: t.エージェント, schedule: t.schedule, prompt: t.prompt, ...(t.forked ? { forked: true } : {}) }));
     for (const t of cleanTasks) {
-      if (!t.agent) { setErr(`task "${t.id}": agent is required`); return; }
+      if (!t.エージェント) { setErr(`task "${t.id}": エージェント is required`); return; }
       if (!t.schedule?.trim()) { setErr(`task "${t.id}": schedule is required`); return; }
     }
     try {
@@ -4921,10 +4936,10 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
   );
 
   return (
-    <Modal title="settings" onClose={props.onClose}>
+    <Modal title="設定" onClose={props.onClose}>
       <form onsubmit={save} style="display:flex;flex-direction:column;gap:14px">
         <fieldset>
-          <legend>providers</legend>
+          <legend>プロバイダー</legend>
           {/* Index keyed by position — editing a row must not recreate its
               input DOM and steal focus. For (keyed by identity) recreated
               the edited row on every keystroke (new object → new identity
@@ -4941,7 +4956,7 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
               </div>
             )}
           </Index>
-          <button type="button" onclick={() => setProviders([...providers(), { name: "", baseUrl: "", apiKey: "", model: "" }])}>+ add custom</button>
+          <button type="button" onclick={() => setProviders([...providers(), { name: "", baseUrl: "", apiKey: "", model: "" }])}>+ カスタムを追加</button>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
             <span class="muted" style="font-size:11.5px">quick-add:</span>
             <For each={PROVIDER_PRESETS}>
@@ -4959,7 +4974,7 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
               )}
             </For>
           </div>
-          <div><label style="display:flex;align-items:center;gap:6px;margin-top:6px" title="agents without an explicit provider use this one">
+          <div><label style="display:flex;align-items:center;gap:6px;margin-top:6px" title="エージェントs without an explicit provider use this one">
             default provider
             <select
               value={defaultProvider()}
@@ -4974,7 +4989,7 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
         </fieldset>
 
         <fieldset>
-          <legend>agent runtime</legend>
+          <legend>エージェント runtime</legend>
           <div class="cfggrid">
             {numInput("progress interval (min)", intervalMin(), (v) => setIntervalMin(v), "how often the harness asks for a progress report")}
             {numInput("progress min chars", minChars(), (v) => setMinChars(v), "progress prompts wait for this much real output")}
@@ -4989,40 +5004,40 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
               />
             </label>
             {numInput("context window (k tok)", ctxWinK(), (v) => setCtxWinK(v), "model's real window — 0/blank hides the % gauge")}
-            {numInput("max spawn depth", maxDepth(), (v) => setMaxDepth(v), "sub-agent nesting limit (0 = no spawning)")}
+            {numInput("max spawn depth", maxDepth(), (v) => setMaxDepth(v), "sub-エージェント nesting limit (0 = no spawning)")}
           </div>
         </fieldset>
 
         <fieldset>
-          <legend>scheduled tasks</legend>
+          <legend>定期タスク</legend>
           <Show when={tasks().length > 0}>
             <Index each={tasks()}>
               {(t, i) => (
                 <div class="cfgcol">
                   <div class="cfgrow">
-                    <input placeholder="id" value={t().id} oninput={(e) => setTasks(tasks().map((x, j) => (j === i ? { ...x, id: e.currentTarget.value } : x)))} />
-                    <input placeholder="agent id" value={t().agent} oninput={(e) => setTasks(tasks().map((x, j) => (j === i ? { ...x, agent: e.currentTarget.value } : x)))} />
-                    <input placeholder="every 30m / cron" value={t().schedule} oninput={(e) => setTasks(tasks().map((x, j) => (j === i ? { ...x, schedule: e.currentTarget.value } : x)))} />
+                    <input placeholder="ID" value={t().id} oninput={(e) => setTasks(tasks().map((x, j) => (j === i ? { ...x, id: e.currentTarget.value } : x)))} />
+                    <input placeholder="エージェントID" value={t().エージェント} oninput={(e) => setTasks(tasks().map((x, j) => (j === i ? { ...x, エージェント: e.currentTarget.value } : x)))} />
+                    <input placeholder="30分毎 / cron" value={t().schedule} oninput={(e) => setTasks(tasks().map((x, j) => (j === i ? { ...x, schedule: e.currentTarget.value } : x)))} />
                     <label style="display:flex;gap:3px;align-items:center;white-space:nowrap;color:var(--dim);font-size:11px">
                       <input type="checkbox" checked={!!t().forked} onchange={(e) => setTasks(tasks().map((x, j) => (j === i ? { ...x, forked: e.currentTarget.checked } : x)))} />fork
                     </label>
                     <button type="button" class="danger" onclick={() => setTasks(tasks().filter((_, j) => j !== i))}>✕</button>
                   </div>
-                  <textarea rows={2} placeholder="prompt to send" value={t().prompt} oninput={(e) => setTasks(tasks().map((x, j) => (j === i ? { ...x, prompt: e.currentTarget.value } : x)))} />
+                  <textarea rows={2} placeholder="送信するプロンプト" value={t().prompt} oninput={(e) => setTasks(tasks().map((x, j) => (j === i ? { ...x, prompt: e.currentTarget.value } : x)))} />
                 </div>
               )}
             </Index>
           </Show>
-          <button type="button" onclick={() => setTasks([...tasks(), { id: "", agent: agentIds()[0] ?? "", schedule: "every 30m", prompt: "" }])}>+ add task</button>
+          <button type="button" onclick={() => setTasks([...tasks(), { id: "", エージェント: エージェントIds()[0] ?? "", schedule: "30分毎", prompt: "" }])}>+ タスクを追加</button>
         </fieldset>
 
         <fieldset>
-          <legend>agents (read-only — edit config file or use +)</legend>
-          <For each={props.cfg.agents ?? []}>
+          <legend>エージェントs (read-only — edit config file or use +)</legend>
+          <For each={props.cfg.エージェントs ?? []}>
             {(a: any) => (
               <div class="cfgrow">
-                <b>{a.id}</b><span class="muted">{a.workspace}</span>
-                <Show when={a.parent}><span class="muted">sub of @{a.parent}</span></Show>
+                <b>{a.id}</b><span class="muted">{a.ワークスペース}</span>
+                <Show when={a.parent}><span class="muted">のサブ @{a.parent}</span></Show>
               </div>
             )}
           </For>
@@ -5039,11 +5054,11 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
                   setErr("");
                   const btn = e.currentTarget as HTMLButtonElement;
                   btn.disabled = true;
-                  btn.textContent = "updating…";
+                  btn.textContent = "更新中…";
                   const res = await api("/api/update/restart", { method: "POST" });
                   if (!res.ok) throw new Error((await res.json()).error ?? "restart failed");
                   // Success — the server will restart. Wait for new version then reload.
-                  btn.textContent = "restarting…";
+                  btn.textContent = "再起動中…";
                   // Poll for new version
                   for (let i = 0; i < 60; i++) {
                     await new Promise((r) => setTimeout(r, 1000));
@@ -5068,12 +5083,12 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
             >
               update & restart
             </button>
-            <span class="muted" style="margin-left:8px;font-size:12px">gracefully stops all agents, spawns new process, then reloads this page</span>
+            <span class="muted" style="margin-left:8px;font-size:12px">gracefully stops all エージェントs, spawns new process, then reloads this page</span>
           </div>
         </fieldset>
 
         <Show when={err()}><span style="color:var(--err);font-size:13px">{err()}</span></Show>
-        <button type="submit" style="align-self:flex-end;background:var(--acc);border:none;border-radius:6px;color:#fff;padding:6px 14px;cursor:pointer">save settings</button>
+        <button type="submit" style="align-self:flex-end;background:var(--acc);border:none;border-radius:6px;color:#fff;padding:6px 14px;cursor:pointer">設定を保存</button>
       </form>
     </Modal>
   );

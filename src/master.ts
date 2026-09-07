@@ -4,11 +4,12 @@
  * delegated to subprocesses managed by the bash tool with hard timeouts.
  */
 import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, statSync, renameSync } from "node:fs";
+
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import { Agent } from "./agent/agent.ts";
 import { parseSchedule, matches, nextFireAt, type Schedule } from "./scheduler/cron.ts";
 import type { LlmConfig, ChatFn } from "./agent/llm.ts";
@@ -444,7 +445,12 @@ export class Master {
     let agentId: string | undefined;
     if (body.workspace?.trim()) {
       const ws = path.resolve(body.workspace.replace(/^~/, process.env.HOME ?? "~"));
-      await mkdirSync(ws, { recursive: true });
+      // Git clone support: detect a URL and clone into a fresh dir
+      if (this.looksLikeGitUrl(body.workspace)) {
+        await this.cloneRepository(body.workspace, ws);
+      } else {
+        await mkdirSync(ws, { recursive: true });
+      }
       const name =
         (body.agentName?.trim() || path.basename(ws))
           .replace(/[^\w.-]/g, "-")
@@ -1077,6 +1083,34 @@ if (active().length === 0) wake();
       return null;
     }
     return { agentId: owner, dir: path.join(root, sessionId) };
+  }
+
+  /** Detect a workspace value that looks like a git repo URL. */
+  private looksLikeGitUrl(value: string): boolean {
+    return /^git@/.test(value) || /^https?:\/\//.test(value) || /^ssh:\/\//.test(value);
+  }
+
+  /** Clone a git repo into `dir`. Errors are surfaced to the caller. */
+  private async cloneRepository(url: string, dir: string): Promise<void> {
+    const parent = path.dirname(dir);
+    mkdirSync(parent, { recursive: true });
+    const name = path.basename(dir);
+    const tmp = path.join(parent, `.tmp-clone-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    const { execSync } = await import("node:child_process");
+    try {
+      execSync(`git clone --quiet ${this.shellEscape(url)} ${this.shellEscape(tmp)}`, { timeout: 120_000 });
+      renameSync(tmp, dir);
+      console.log(`[teapot] cloned ${url} → ${dir}`);
+    } catch (err) {
+      // clean up the temp dir on failure
+      try { renameSync(tmp, dir); } catch { /* ignore */ }
+      throw new Error(`git clone failed: ${(err as Error).message}`);
+    }
+  }
+
+  /** Escape a string for safe use inside a shell command (single-quote wrapper). */
+  private shellEscape(s: string): string {
+    return `'${s.replace(/'/g, "'\\''")}'`;
   }
 
   async removeAgent(id: string): Promise<void> {
