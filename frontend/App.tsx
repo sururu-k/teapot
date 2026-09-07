@@ -40,13 +40,13 @@ interface Ev {
 }
 
 const AUTHORS: Record<string, { name: string; icon: string; color: string }> = {
-  prompt: { name: "you", icon: "🟧", color: "#faa81a" },
-  user: { name: "you", icon: "🟧", color: "#faa81a" },
-  message: { name: "agent", icon: "🫖", color: "#5865f2" },
-  progress: { name: "progress", icon: "📈", color: "#3ba55d" },
-  question: { name: "agent", icon: "❓", color: "#5865f2" }, // ask_user comes from the agent too
+  prompt: { name: "you", icon: "person", color: "#faa81a" },
+  user: { name: "you", icon: "person", color: "#faa81a" },
+  message: { name: "agent", icon: "chat_bubble", color: "#5865f2" },
+  progress: { name: "progress", icon: "trending_up", color: "#3ba55d" },
+  question: { name: "agent", icon: "help", color: "#5865f2" }, // ask_user comes from the agent too
 };
-const HARNESS_AUTH = { name: "harness", icon: "📣", color: "#3ba55d" };
+const HARNESS_AUTH = { name: "harness", icon: "megaphone", color: "#3ba55d" };
 
 /* ---------- transient toast hint (module scope: also used by SwitchContent) ---------- */
 const [flash, setFlash] = createSignal("");
@@ -92,15 +92,15 @@ function themeColors(): { background: string; foreground: string } {
 
 /** author for an event — mirrored sub-agent rows act under their own id */
 const authorOf = (e: Ev) => {
-  if (e.data?.actor) return { name: `@${String(e.data.actor)}`, icon: "🧩", color: "#3ba0c9" };
+  if (e.data?.actor) return { name: `@${String(e.data.actor)}`, icon: "jigsaw", color: "#3ba0c9" };
   if (e.type === "tool_call" || e.type === "tool_result")
-    return { name: String(e.data?.name ?? "tool"), icon: "⚙", color: "#3ba0c9" };
+    return { name: String(e.data?.name ?? "tool"), icon: "settings", color: "#3ba0c9" };
   if (e.type === "prompt") {
     const src = String(e.data?.source ?? "user");
     if (src === "user") return AUTHORS.prompt;
-    return src.startsWith("scheduler:") ? { name: src.slice(10), icon: "📣", color: "#3ba55d" } : HARNESS_AUTH;
+    return src.startsWith("scheduler:") ? { name: src.slice(10), icon: "megaphone", color: "#3ba55d" } : HARNESS_AUTH;
   }
-  return AUTHORS[e.type] ?? { name: e.type, icon: "•", color: "#9298a5" };
+  return AUTHORS[e.type] ?? { name: e.type, icon: "circle", color: "#9298a5" };
 };
 
 // state/error/fork/goal render as dividers or embeds inside the feed
@@ -261,10 +261,10 @@ export default function App() {
     } catch { setModels([]); }
   }
   /** "ctx 1m · $3/M in · $15/M out" for the draft (or current) model */
-  /** 📄🖼️→📄 style badge for a model's input/output modalities */
+  /** Modality badge: text/image/audio/video/file for a model's input/output */
   const modalityBadge = (m?: { modalities?: { input: string[]; output: string[] } }): string => {
     const icon: Record<string, string> = {
-      text: "📄", image: "🖼️", audio: "🔊", video: "🎬", file: "📎",
+      text: "article", image: "image", audio: "audiotrack", video: "movie", file: "attach_file",
     };
     const side = (list?: string[]) =>
       (list ?? ["text"]).map((k) => icon[k] ?? k).join("");
@@ -278,7 +278,7 @@ export default function App() {
     if (!m) return "";
     const parts: string[] = [];
     const badge = modalityBadge(m);
-    if (badge && badge !== "📄 → 📄") parts.push(badge); // text-only is the default — no noise
+    if (badge && badge !== "article → article") parts.push(badge); // text-only is the default — no noise
     if (m.contextLength) parts.push(`ctx ${fmtK(m.contextLength)} tok`);
     const price = (p?: number) =>
       p === undefined ? "" : `${p * 1e6 >= 10 ? Math.round(p * 1e6) : +(p * 1e6).toFixed(1)}/M`;
@@ -502,7 +502,7 @@ export default function App() {
     eventId?: string;
   };
   const [notifs, setNotifs] = createSignal<Notif[]>([]);
-  // hide 👻 ghost sessions (workspace directory missing on disk) — a toggle,
+  // hide ghost sessions (workspace missing on disk) — a toggle,
   // because they still hold history the operator may need
   const [hideGhosts, setHideGhosts] = createSignal(
     localStorage.getItem("teapot.hideGhosts") === "1",
@@ -660,10 +660,10 @@ export default function App() {
     const real = events().filter((e) => {
       if (!FEED_TYPES.has(e.type)) return false;
       // report_progress calls are fully rendered by the progress embed below
-      // (the timeline's 📈 row + the right panel's snapshot) — the tool-call
+      // (the timeline's progress row + the right panel's snapshot) — the tool-call
       // row would just repeat the same content a third time
       // report_progress / ask_user calls are fully rendered by their own
-      // embeds (📈 progress / ❓ question) — the tool rows would just repeat
+      // embeds (progress / question) — the tool rows would just repeat
       // the same content a second time. ask_user also shows "answered"
       // state via its embed, so the raw rows add nothing.
       const metaToolName =
@@ -1451,7 +1451,7 @@ export default function App() {
   createEffect(() => {
     const a = sel();
     const base = a
-      ? `${a.status === "running" ? "▶ " : a.status === "error" ? "⚠ " : ""}${a.id} · teapot`
+      ? `${a.status === "running" ? "▶ " : a.status === "error" ? "error " : ""}${a.id} · teapot`
       : "teapot";
     // unread notification count in the tab title — "(2) linux · teapot"
     document.title = unreadCount() > 0 ? `(${unreadCount()}) ${base}` : base;
@@ -1962,7 +1962,7 @@ export default function App() {
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ persona: name, task: arg, context: mentionFork() ? "fork" : "none" }),
           });
-          flashHint(`🧩 spawned ${(r as any).id}${mentionFork() ? " (forked context)" : ""}`);
+          flashHint(`jigsaw spawned ${(r as any).id}${mentionFork() ? " (forked context)" : ""}`);
           refreshAgents(); saveDraft("");
         } else if (knownAgent) {
           if (!arg) { flashHint(`usage: @${name} <message>`); return; }
@@ -2164,7 +2164,7 @@ export default function App() {
                   class={a.workspaceMissing ? " ghost" : ""}
                   title={a.workspaceMissing ? `workspace not found on disk (${a.workspace}) — it will be created when this session runs` : undefined}
                 >{a.id}</span>
-                {a.workspaceMissing ? <span class="ghosttag" title="workspace missing">👻</span> : null}
+                {a.workspaceMissing ? <span class="ghosttag" title="workspace missing">cloud_off</span> : null}
                 <Show when={subtreeUnread(a.id) > 0}>
                   <span class="notifbadge" title={`${subtreeUnread(a.id)} unread notification${subtreeUnread(a.id) > 1 ? "s" : ""} (including sub-agents)`}>
                     🔔{subtreeUnread(a.id)}
@@ -2181,16 +2181,16 @@ export default function App() {
                         class={"subcount" + (running > 0 ? " live" : "")}
                         title={`${kids.length} sub-agent${kids.length > 1 ? "s" : ""} (${running} active)`}
                       >
-                        🧩 {kids.length}{running > 0 ? ` · ▶${running}` : ""}
+                        jigsaw {kids.length}{running > 0 ? ` · ▶${running}` : ""}
                       </span>
                     ) : null;
                   })()}
                 </Show>
-                <Show when={a.parent}><span class="subtag">🧩</span></Show>
+                <Show when={a.parent}><span class="subtag">jigsaw</span></Show>
                 <Show when={agentTasks(a.id).length > 0}>
-                  <span class="mini-cron" title={agentTasks(a.id).map((t) => `${t.id}: ${t.schedule}`).join("\n")}>⏰</span>
+                  <span class="mini-cron" title={agentTasks(a.id).map((t) => `${t.id}: ${t.schedule}`).join("\n")}>schedule</span>
                 </Show>
-                <Show when={a.goal.status === "done"}><span title="goal done">✓</span></Show>
+                <Show when={a.goal.status === "done"}><span title="goal done">check</span></Show>
               </div>
             )}
           </For>
@@ -2279,9 +2279,9 @@ export default function App() {
               🔔<Show when={unreadCount() > 0}><i class="notifdot">{unreadCount()}</i></Show>
             </button>
             <IconBtn
-              icon="👻"
+              icon="visibility_off"
               active={hideGhosts()}
-              title={hideGhosts() ? "show ghost sessions again (👻 workspace missing on disk)" : "hide ghost sessions (👻 — their workspace directory no longer exists)"}
+              title={hideGhosts() ? "show ghost sessions again (workspace missing on disk)" : "hide ghost sessions (their workspace directory no longer exists)"}
               onClick={(e) => {
                 e.stopPropagation();
                 const next = !hideGhosts();
@@ -2294,13 +2294,13 @@ export default function App() {
                 }
               }}
             />
-            <IconBtn icon="＋" title="new agent" onClick={() => { loadCfg(); setShowNew(true); }} />
-            <IconBtn icon="🎨" title="themes" onClick={() => setShowThemes(!showThemes())} />
-            <IconBtn icon="⚙" title="settings" onClick={() => { loadCfg(); setShowCfg(true); }} />
+            <IconBtn icon="add" title="new agent" onClick={() => { loadCfg(); setShowNew(true); }} />
+            <IconBtn icon="palette" title="themes" onClick={() => setShowThemes(!showThemes())} />
+            <IconBtn icon="settings" title="settings" onClick={() => { loadCfg(); setShowCfg(true); }} />
           </div>
           <div class="brand-row">
             <div class="brand">
-              🫖 teapot <span class="version">v{__APP_VERSION__}</span>
+              chat_bubble teapot <span class="version">v{__APP_VERSION__}</span>
               <span class={"conn" + (connected() ? " ok" : "")} title={connected() ? "live (websocket)" : "reconnecting…"} />
             </div>
           </div>
@@ -2323,14 +2323,14 @@ export default function App() {
             <Show when={(sel()!.pendingPrompts ?? 0) > 0}>
               <span
                 class="badge queued"
-                title={`${sel()!.pendingPrompts ?? 0} message${(sel()!.pendingPrompts ?? 0) > 1 ? "s" : ""} from you waiting in the queue. They will be handed to the model at its next turn boundary — the timeline shows them as "pending (queued)…" until then, and each can be withdrawn with ✕ cancel while it's still queued.`}
+                title={`${sel()!.pendingPrompts ?? 0} message${(sel()!.pendingPrompts ?? 0) > 1 ? "s" : ""} from you waiting in the queue. They will be handed to the model at its next turn boundary — the timeline shows them as "pending (queued)…" until then, and each can be withdrawn with close cancel while it's still queued.`}
               >
                 ⏳ {sel()!.pendingPrompts} of yours queued
               </span>
             </Show>
             <Show when={agentTasks(sel()!.id).length > 0}>
               <span class="badge cron" title={`scheduled tasks:\n${agentTasks(sel()!.id).map((t) => `${t.schedule} · ${t.id}${t.forked ? " (forked)" : ""}`).join("\n")}`}>
-                ⏰ {agentTasks(sel()!.id).length}
+                schedule {agentTasks(sel()!.id).length}
               </span>
             </Show>
             <span class="sub">
@@ -2340,8 +2340,8 @@ export default function App() {
               <Show when={sel()!.statusReason}>
                 <span class="sub" title={sel()!.statusReason}>ℹ</span>
               </Show>
-              <IconBtn icon="⌨" title="terminal (t)" onClick={toggleTerm} />
-              <IconBtn icon="▤" title="toggle details panel (d)" onClick={toggleRight} />
+              <IconBtn icon="keyboard" title="terminal (t)" onClick={toggleTerm} />
+              <IconBtn icon="view_sidebar" title="toggle details panel (d)" onClick={toggleRight} />
             </span>
           </header>
 
@@ -2380,7 +2380,7 @@ export default function App() {
             <Show when={compacting()}>
               {(c) => (
                 <div class="divider-msg compacting" title="the harness is compressing old turns into notes so work can continue within the context window">
-                  🗜 {c().phase === "harvesting" ? "saving durable lessons…" : `summarizing ${c().summarized ? fmtK(c().summarized!) + " " : ""}older messages…`}
+                  summarize {c().phase === "harvesting" ? "saving durable lessons…" : `summarizing ${c().summarized ? fmtK(c().summarized!) + " " : ""}older messages…`}
                 </div>
               )}
             </Show>
@@ -2439,7 +2439,7 @@ export default function App() {
               </For>
               <Show when={live()}>
                 <div class="msg live">
-                  <div class="avatar" style="background:#5865f233;border:1px solid #5865f266">🫖</div>
+                  <div class="avatar" style="background:#5865f233;border:1px solid #5865f266">chat_bubble</div>
                   <div class="msg-body">
                     <div class="msg-head">
                       <span class="author" style="color:var(--acc)">agent</span>
@@ -2502,19 +2502,19 @@ export default function App() {
                         onclick={() => focusTab(i())}
                         title={`${t.title} — click to show in focused pane`}
                       >
-                        ⌨ {t.title}
+                        keyboard {t.title}
                         <button class="tabx" onclick={(e) => { e.stopPropagation(); closeTab(i()); }} title="close this shell">✕</button>
                       </span>
                     )}
                   </For>
-                  <IconBtn icon="＋" title="new shell in this workspace" onClick={addFromSelected} />
+                  <IconBtn icon="plus" title="new shell in this workspace" onClick={addFromSelected} />
                 </div>
                 <div style="display:flex;gap:4px;align-items:center">
                   <span class="muted mono" style="flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
                     {activeTab() ? agents().find((a) => a.id === activeTab()!.agentId)?.workspace.split("/").filter(Boolean).pop() : sel()?.workspace}
                   </span>
-                  <IconBtn icon="◫" title={splitView() ? "single pane" : "split panes (50/50)"} onClick={toggleSplit} />
-                  <IconBtn icon="▾" title="hide the terminal (shells keep running; reopen with t) — close individual shells with their ✕ tab buttons" onClick={toggleTerm} />
+                  <IconBtn icon="swap" title={splitView() ? "single pane" : "split panes (50/50)"} onClick={toggleSplit} />
+                  <IconBtn icon="arrow_down" title="hide the terminal (shells keep running; reopen with t) — close individual shells with their ✕ tab buttons" onClick={toggleTerm} />
                 </div>
               </div>
               <div class="termbody" classList={{ split: splitView() }}>
@@ -2594,7 +2594,7 @@ export default function App() {
               <textarea
                 ref={composerEl}
                 rows={1}
-                placeholder={`message #${sel()!.id} — / for commands · paste or 📎 to attach images`}
+                placeholder={`message #${sel()!.id} — / for commands · paste or attachment to attach images`}
                 value={draft()}
                 onpaste={(e) => {
                   // screenshots land on the clipboard as files — stage them
@@ -2660,17 +2660,17 @@ export default function App() {
                   // pinned / restored correctly across the relayout
                   requestAnimationFrame(() => autosizeComposer());
                 }}
-              >{composerMaximized() ? "⤡" : "⤢"}</button>
+              >{composerMaximized() ? "fullscreen_exit" : "fullscreen"}</button>
               <IconBtn
-                icon="📎"
+                icon="attach_file"
                 title="attach images (or paste them straight into the box)"
                 onClick={() => document.getElementById("composer-file")?.click()}
               />
               <Show when={pendingImages().length}>
-                <span class="muted" style="font-size:11.5px;white-space:nowrap">🖼 {pendingImages().length}</span>
+                <span class="muted" style="font-size:11.5px;white-space:nowrap">image {pendingImages().length}</span>
               </Show>
               <button type="submit">send</button>
-              {/* hidden input lives here so the 📎 button can trigger it */}
+              {/* hidden input lives here so the attach button can trigger it */}
               <input
                 id="composer-file"
                 type="file"
@@ -2754,7 +2754,7 @@ export default function App() {
                           models().find((m) => m.id === (modelDraft().trim() || undefined))?.contextLength,
                       }),
                     });
-                    btn.textContent = "✓ applied";
+                    btn.textContent = "applied";
                     refreshAgents();
                   } catch (ex) {
                     alert(`model switch failed: ${(ex as Error).message}`);
@@ -2866,13 +2866,13 @@ export default function App() {
                       body: JSON.stringify({ status: s }),
                     }).then(refreshAgents);
                   }}
-                >{s === "active" ? "▶ working" : s === "done" ? "✓ done" : "⏸ paused"}</button>
+                >{s === "active" ? "▶ working" : s === "done" ? "done" : "paused"}</button>
               )}
             </For>
           </div>
           <Show
             when={sel()!.goal.text}
-            fallback={<div class="card muted">no goal yet — write one below and press ✓ save. Then ▶ start (or any message) sets it in motion.</div>}
+            fallback={<div class="card muted">no goal yet — write one below and press save. Then ▶ start (or any message) sets it in motion.</div>}
           >
             <div class="card">
               <div class="content" innerHTML={renderMarkdown(String(sel()!.goal.text))} />
@@ -2887,7 +2887,7 @@ export default function App() {
               {(a) => (
                 <div class={"card auditcard " + (a().verdict === "approved" ? "ok" : "warn")}>
                   <div class="vtitle">
-                    {a().verdict === "approved" ? "✅ audit: approved" : "⚠ audit: changes required"}
+                    {a().verdict === "approved" ? "check approved" : "error audit: changes required"}
                     <span class="meta muted" style="margin-left:auto">{relTime(a().at)}</span>
                   </div>
                   <div class="content" innerHTML={renderMarkdown(a().feedback)} />
@@ -2924,12 +2924,12 @@ export default function App() {
               >
                 <input id="goal-notify" type="checkbox" checked={goalNotify()} onchange={(e) => setGoalNotify(e.currentTarget.checked)} /> notify agent
               </label>
-              <button type="submit" style="background:var(--acc);border:none;border-radius:6px;color:#fff;padding:4px 12px;cursor:pointer">✓ save goal</button>
+              <button type="submit" style="background:var(--acc);border:none;border-radius:6px;color:#fff;padding:4px 12px;cursor:pointer">save goal</button>
             </div>
           </form>
 
           <h3 title="todo.md — a shared checklist in the session dir. Write tasks like '- [ ] fix login'; the agent ticks them off via set_todo, you edit here. With notify on, it's told at its next turn boundary.">
-            ✅ tasks
+            tasks
             <Show when={todoStats().total > 0}>
               <span class="badge" style={todoStats().done === todoStats().total ? "color:var(--ok)" : "color:var(--warn)"}>
                 {todoStats().done}/{todoStats().total} done
@@ -2968,7 +2968,7 @@ export default function App() {
           </Show>
           <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:4px">
             <IconBtn
-              icon={todoViewMode() ? "👁" : "✎"}
+              icon={todoViewMode() ? "visibility" : "edit"}
               title={todoViewMode() ? "rendered checklist" : "edit markdown"}
               onClick={() => setTodoViewMode(!todoViewMode())}
             />
@@ -2982,10 +2982,10 @@ export default function App() {
             <button
               onclick={saveTodo}
               style="background:var(--ok);border:none;border-radius:6px;color:#fff;padding:4px 12px;cursor:pointer"
-            >✓ save tasks</button>
+            >save tasks</button>
           </div>
 
-          <h3 title="latest report_progress snapshot. The harness asks for one after real activity (time AND output gates); errors show under ⚠ problems">📈 progress</h3>
+          <h3 title="latest report_progress snapshot. The harness asks for one after real activity (time AND output gates); errors show under problems">progress</h3>
           <Show
             when={sel()!.latestProgress}
             fallback={<div class="muted">none yet — the harness asks for a report after real activity, and the agent can report_progress anytime</div>}
@@ -2994,7 +2994,7 @@ export default function App() {
               <div class="card prog">
                 <div class="progrow"><b>doing</b><span class="content inline-md" innerHTML={renderMarkdownCached(p().doing)} /></div>
                 <Show when={p().recent}><div class="progrow"><b>recent</b><span class="content inline-md" innerHTML={renderMarkdownCached(p().recent)} /></div></Show>
-                <Show when={p().problems}><div class="progrow warn"><b>⚠ problems</b><span class="content inline-md" innerHTML={renderMarkdownCached(p().problems)} /></div></Show>
+                <Show when={p().problems}><div class="progrow warn"><b>problems</b><span class="content inline-md" innerHTML={renderMarkdownCached(p().problems)} /></div></Show>
                 <Show when={p().next}><div class="progrow"><b>next</b><span class="content inline-md" innerHTML={renderMarkdownCached(p().next)} /></div></Show>
                 <Show when={p().goalStatus}><div class="progrow"><b>goal</b><span>{p().goalStatus}</span></div></Show>
                 <div class="meta muted">{relTime(p().ts)}</div>
@@ -3159,10 +3159,10 @@ export default function App() {
             )}
           </For>
 
-          <h3>⏰ schedule <span class="muted" style="text-transform:none;letter-spacing:0">· cron tasks, all agents · edit in settings</span></h3>
+          <h3>schedule <span class="muted" style="text-transform:none;letter-spacing:0">· cron tasks, all agents · edit in settings</span></h3>
           <Show
             when={tasks().length > 0}
-            fallback={<div class="muted">no scheduled tasks — add them in ⚙ settings ("scheduled tasks")</div>}
+            fallback={<div class="muted">no scheduled tasks — add them in settings ("scheduled tasks")</div>}
           >
             <For each={tasks()}>
               {(t) => (
@@ -3223,8 +3223,9 @@ export default function App() {
                       setTimeout(() => jumpToEvent(n.eventId!), selected() !== n.agentId ? 350 : 60);
                   }}
                 >
+                  
                   <div class="nhead">
-                    <span class="nicon">{n.kind === "finish" ? "✅" : n.kind === "question" ? "❓" : n.kind === "error" ? "⚠️" : "📈"}</span>
+                    <span class="nicon material-icon">{n.kind === "finish" ? "check_circle" : n.kind === "question" ? "help" : n.kind === "error" ? "error" : "trending_up"}</span>
                     <span class="ntitle">{n.title}</span>
                     <span class="meta muted">{relTime(new Date(n.at).toISOString())}</span>
                     <button
@@ -3234,7 +3235,7 @@ export default function App() {
                         e.stopPropagation();
                         setNotifs((list) => list.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
                       }}
-                    >{n.read ? "✓" : "○"}</button>
+                    >{n.read ? "check" : "circle"}</button>
                   </div>
                   <Show when={n.body}>
                     <div class="nbody">{truncate(n.body, 160)}</div>
@@ -3369,7 +3370,7 @@ function ToolRow(props: { e: Ev; res?: Ev; agentActive?: boolean; onResize?: () 
   const out = () => (res ? String(res.data?.result ?? "") : "");
 
   // per-tool summary line: [icon, label, hint]
-  let icon = "⚙";
+  let icon = "settings";
   let label = name;
   let hint: string | null = "";
   let body: any = <div class="mono">{truncate(JSON.stringify(d.args ?? {}, null, 1), 2000)}</div>;
@@ -3661,7 +3662,7 @@ function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; on
     return <div class="divider-msg">🎯 goal {String(d.event ?? "")}: {what}</div>;
   }
   if (e.type === "todo") {
-    return <div class="divider-msg">✅ tasks updated ({String(e.data?.by ?? "human")})</div>;
+    return <div class="divider-msg">tasks updated ({String(e.data?.by ?? "human")})</div>;
   }
   if (e.type === "state") {
     if (e.data.from === e.data.to) return null;
@@ -3697,7 +3698,7 @@ function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; on
       const secs = Math.round(Number(e.data?.durationMs ?? 0) / 1000);
       return (
         <div class={"divider-msg" + (failed ? " err" : "")} title={String(e.data?.cmd ?? "")}>
-          {(failed ? "⚠ background job " : "✓ background job ") +
+          {(failed ? "background job " : "done background job ") +
             String(e.data?.jobId ?? "?") + " " +
             (failed ? `FAILED (exit ${String(e.data?.code ?? "?")})` : `finished (${secs}s)`)}
         </div>
@@ -3720,7 +3721,7 @@ function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; on
     >
       {/* grouped rows keep the same geometry as the row that started the
           run — same avatar slot, but EMPTY (no faded ghost icon): a column of
-          faint 🧩s read as separate "sub messages" instead of continuation
+          faint subs read as separate "sub messages" instead of continuation
           lines. Hover still shows time+branch via the title. */}
       <div
         class={"avatar avghost" + (grouped ? " ghosted" : "")}
@@ -3744,7 +3745,7 @@ function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; on
                 class="editbtn"
                 title="withdraw this message — it has not reached the model yet; the text goes back to the input box"
                 onclick={(ev: MouseEvent) => { ev.stopPropagation(); props.onCancel!(); }}
-              >✕ cancel</button>
+              >cancel</button>
             </Show>
             {/* tool rows have no copyable message body — their command/output
                 buttons live inside ToolRow; rendering the header button anyway
@@ -3757,7 +3758,7 @@ function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; on
                 class="editbtn"
                 title="edit this prompt — forks the conversation here (later events are dropped or summarized)"
                 onclick={(ev: MouseEvent) => { ev.stopPropagation(); props.onEdit!(); }}
-              >✎ edit</button>
+              >edit</button>
             </Show>
           </div>
         </Show>
@@ -3827,7 +3828,7 @@ function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => vo
           </Show>
           <div class="content" innerHTML={renderMarkdownCached(String(e.data.content ?? ""))} />
           <Show when={e.data.interrupted}>
-            <div class="interrupted">⚠ interrupted — partial output kept</div>
+            <div class="interrupted">interrupted — partial output kept</div>
           </Show>
           <Show when={e.data.final}>
             <div class="msgfoot"><CopyBtn text={String(e.data.content ?? "")} /><span>copy summary</span></div>
@@ -3878,7 +3879,7 @@ function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => vo
         <div class={"embed question" + (answered ? " answered" : "")}>
           {/* questions are model-written and often carry markdown (code refs,
               lists) — render them like progress embeds instead of dumping raw */}
-          <div>❓ <div class="content inline-md" innerHTML={renderMarkdownCached(String(e.data?.question ?? ""))} /></div>
+          <div>question <div class="content inline-md" innerHTML={renderMarkdownCached(String(e.data?.question ?? ""))} /></div>
           <Show when={answered}>
             <div class="meta" style="color:var(--ok)">✓ answered — continuing below</div>
           </Show>
@@ -3915,15 +3916,15 @@ function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => vo
         <div class="embed" style="border-color: var(--ok)">
           {/* progress bodies are model-written markdown — render them, don't
               dump raw text (structured fields keep their labels) */}
-          <div>📈 <div class="content inline-md" innerHTML={renderMarkdownCached(String(e.data.doing ?? ""))} /></div>
+          <div>progress <div class="content inline-md" innerHTML={renderMarkdownCached(String(e.data.doing ?? ""))} /></div>
           <Show when={e.data.goalStatus}><div class="progrow"><b>goal</b><span>{String(e.data.goalStatus)}</span></div></Show>
           <Show when={e.data.recent}><div class="progrow"><b>recent</b><span class="content inline-md" innerHTML={renderMarkdownCached(String(e.data.recent))} /></div></Show>
-          <Show when={e.data.problems}><div class="progrow warn"><b>⚠ problems</b><span class="content inline-md" innerHTML={renderMarkdownCached(String(e.data.problems))} /></div></Show>
+          <Show when={e.data.problems}><div class="progrow warn"><b>problems</b><span class="content inline-md" innerHTML={renderMarkdownCached(String(e.data.problems))} /></div></Show>
           <Show when={e.data.next}><div class="progrow"><b>next</b><span class="content inline-md" innerHTML={renderMarkdownCached(String(e.data.next))} /></div></Show>
         </div>
       );
     case "error":
-      return <div class="embed fail"><div class="mono">⚠ {String(e.data.message ?? "")}</div></div>;
+      return <div class="embed fail"><div class="mono">{String(e.data.message ?? "")}</div></div>;
     case "compaction":
       return (
         <details class="embed compaction">
@@ -4155,14 +4156,14 @@ const AUDIO_EXT = new Set(["mp3", "wav", "ogg", "m4a", "flac", "aac", "opus"]);
 function ficon(name: string): string {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
   const mk = mediaKindOf(name);
-  if (mk === "image") return "🖼";
-  if (mk === "video") return "🎬";
+  if (mk === "image") return "image";
+  if (mk === "video") return "video";
   if (mk === "audio") return "🎵";
   if (["ts", "tsx", "mts", "cts"].includes(ext)) return "🟦";
   if (["js", "mjs", "cjs", "jsx"].includes(ext)) return "🟨";
   if (ext === "json" || ext === "jsonc") return "🧾";
-  if (ext === "md" || ext === "mdx" || ext === "markdown") return "📝";
-  if (ext === "css" || ext === "scss" || ext === "less") return "🎨";
+  if (ext === "md" || ext === "mdx" || ext === "markdown") return "description";
+  if (ext === "css" || ext === "scss" || ext === "less") return "palette";
   if (ext === "html" || ext === "htm" || ext === "svg") return "🌐";
   if (["py", "pyi"].includes(ext)) return "🐍";
   if (ext === "rs") return "🦀";
@@ -4170,10 +4171,10 @@ function ficon(name: string): string {
   if (ext === "java" || ext === "kt" || ext === "kts") return "☕";
   if (ext === "rb") return "💎";
   if (ext === "php") return "🐘";
-  if (ext === "c" || ext === "h" || ext === "cpp" || ext === "hpp" || ext === "cc") return "🧩";
+  if (ext === "c" || ext === "h" || ext === "cpp" || ext === "hpp" || ext === "cc") return "jigsaw";
   if (ext === "sh" || ext === "bash" || ext === "zsh" || ext === "fish") return "🐚";
   if (ext === "sql") return "🗄";
-  if (ext === "yml" || ext === "yaml" || ext === "toml" || ext === "ini" || ext === "conf") return "⚙";
+  if (ext === "yml" || ext === "yaml" || ext === "toml" || ext === "ini" || ext === "conf") return "settings";
   if (ext === "lock") return "🔒";
   if (name === "Dockerfile" || ext === "dockerfile") return "🐳";
   if (ext === "zip" || ext === "gz" || ext === "tar" || ext === "tgz" || ext === "bz2") return "📦";
@@ -4499,20 +4500,20 @@ function FilesPanel(props: { agentId: string; workspace: string }) {
         🗂 files <span class="muted" style="text-transform:none;letter-spacing:0">· {wsName()}</span>
         <IconBtn
           class="filetoggle"
-          icon={refreshing() ? "…" : "⟳"}
+          icon={refreshing() ? "more" : "refresh"}
           title="refresh the tree (root + expanded folders) — open popups are kept"
           onClick={() => void refreshTree()}
         />
         <IconBtn
           class="filetoggle"
           style="margin-left:auto"
-          icon={ignoreMode() === "hide" ? "🙈" : ignoreMode() === "dim" ? "👁" : "✨"}
+          icon={ignoreMode() === "hide" ? "visibility_off" : ignoreMode() === "dim" ? "visibility" : "sparkles"}
           title={`gitignored files: ${ignoreMode()} — click to cycle (dim → hidden → shown)`}
           onClick={cycleIgnoreMode}
         />
         <IconBtn
           class="filetoggle"
-          icon={showHidden() ? "◉." : "○."}
+          icon={showHidden() ? "visibility" : "visibility_off"}
           title={showHidden() ? "dotfiles shown — click to hide" : "dotfiles hidden — click to show"}
           onClick={toggleHidden}
         />
@@ -4540,7 +4541,7 @@ function FilesPanel(props: { agentId: string; workspace: string }) {
                     </Show>
                     <button class={viewMode() === "code" ? "on" : ""} onclick={() => { setViewMode("code"); if (!hlHtml()) startHighlighting({ path: pv().path, content: pv().content, truncated: pv().truncated }); }} title="syntax-highlighted source">{"</>"} code</button>
                     <Show when={isEditable(pv())}>
-                      <button class={viewMode() === "edit" ? "on" : ""} onclick={() => setViewMode("edit")} title="edit and save back to the workspace">✎ edit</button>
+                      <button class={viewMode() === "edit" ? "on" : ""} onclick={() => setViewMode("edit")} title="edit and save back to the workspace">edit</button>
                     </Show>
                   </div>
                   <Show
@@ -4574,7 +4575,7 @@ function FilesPanel(props: { agentId: string; workspace: string }) {
                         <div class="filerow-actions">
                           <span class="muted">{fmtK(editBuf().length)} bytes</span>
                           <button class="savebtn" disabled={saving() || editBuf() === pv().content} onclick={() => void saveFile()}>
-                            {saving() ? "saving…" : "💾 save"}
+                            {saving() ? "saving…" : "save"}
                           </button>
                         </div>
                       </div>
@@ -4618,7 +4619,7 @@ function CodePreview(props: { path: string; content: string; html: string; pendi
         fallback={
           props.pending ? (
             <div class="muted" style="padding:8px;font-size:12px">
-              ✨ highlighting {props.path.split("/").pop()}…
+              highlighting {props.path.split("/").pop()}…
             </div>
           ) : (
             <pre class="mono" style="max-height:62vh;overflow:auto;white-space:pre-wrap;margin:0">
@@ -4774,10 +4775,10 @@ function SetupWizard(props: { onDone: () => void }) {
   return (
     <div class="overlay" style={{ background: "var(--bg-darkest)" }}>
       <div class="modal" style="max-width:560px">
-        <div class="modal-head"><b>🫖 welcome to teapot</b></div>
+        <div class="modal-head"><b>welcome to teapot</b></div>
         <p class="muted" style="margin:0 0 10px;font-size:13px">
           first run — pick an OpenAI-compatible provider and you're done.
-          everything below can be changed later in ⚙ settings.
+          everything below can be changed later in settings.
         </p>
         <form onsubmit={submit} style="display:flex;flex-direction:column;gap:12px">
           <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -5021,7 +5022,7 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
             {(a: any) => (
               <div class="cfgrow">
                 <b>{a.id}</b><span class="muted">{a.workspace}</span>
-                <Show when={a.parent}><span class="muted">🧩 sub of @{a.parent}</span></Show>
+                <Show when={a.parent}><span class="muted">sub of @{a.parent}</span></Show>
               </div>
             )}
           </For>

@@ -58,7 +58,7 @@ export const SUB_PERSONAS: Record<
       "ROLE: hands-on implementer. Make the change end-to-end (code + tests), keep edits small and verified, then report what changed and why.",
   },
   "gyaru-reviewer": {
-    label: "💅 gyaru reviewer",
+    label: "gyaru reviewer",
     directive:
       "ROLE: pre-commit diff reviewer in a blunt gyaru voice. Read the whole diff and hunt: debug leftovers, unclear UI copy, silent data-loss risks, convention drift. Every finding must be concrete — suggested fix or an explicit shrug.",
     readOnly: true,
@@ -223,7 +223,7 @@ function printAgentEvent(e: TeapotEvent): void {
       line = `${c("33", "▶ prompt")} (${d.source}) ${clip1(d.text, 110)}`;
       break;
     case "tool_call":
-      line = `${c("36", "⚙ exec")} ${d.name} ${dim(clip1(JSON.stringify(d.args ?? {}), 130))}`;
+      line = `${c("36", "exec")} ${d.name} ${dim(clip1(JSON.stringify(d.args ?? {}), 130))}`;
       break;
     case "tool_result": {
       const ok = d.ok !== false;
@@ -244,7 +244,7 @@ function printAgentEvent(e: TeapotEvent): void {
       if (d.final && d.content) line = `${c("34", "🏁 final")} ${clip1(d.content, 140)}`;
       break; // regular assistant messages are visible in the UI
     case "progress":
-      line = `${c("32", "📈 progress")} ${clip1(d.doing, 100)}`;
+      line = `${c("32", "progress")} ${clip1(d.doing, 100)}`;
       break;
     case "goal":
       line = `🎯 goal ${d.event}: ${clip1(d.text ?? d.status, 100)}`;

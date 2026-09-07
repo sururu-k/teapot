@@ -226,13 +226,13 @@ export function buildApp(master: Master): Hono {
             ? spawn("script", ["-qec", shell, "/dev/null"], { cwd: agent.workspace, env })
             : spawn(shell, [], { cwd: agent.workspace, env: { ...env, TERM: "dumb" } });
           console.log(
-            `[teapot] ⌨ terminal open: ${agentId} @ ${agent.workspace} (${hasScript ? "pty" : "pipe"})`,
+            `[teapot] terminal open: ${agentId} @ ${agent.workspace} (${hasScript ? "pty" : "pipe"})`,
           );
           child.stdout?.on("data", (b: Buffer) => send({ kind: "data", data: b.toString("utf8") }));
           child.stderr?.on("data", (b: Buffer) => send({ kind: "data", data: b.toString("utf8") }));
           child.on("close", (code) => {
             send({ kind: "exit", code });
-            console.log(`[teapot] ⌨ terminal exit: ${agentId} (${code ?? "signal"})`);
+            console.log(`[teapot] terminal exit: ${agentId} (${code ?? "signal"})`);
             child = null;
           });
         },

@@ -1800,7 +1800,7 @@ export class Agent {
           await this.log.append("message", this.currentSession, this.currentBranch, {
             role: "assistant",
             content: approved
-              ? `✅ completion audit: APPROVED — ${feedback}`
+              ? `completion audit: APPROVED — ${feedback}`
               : `🔍 completion audit: CHANGES REQUIRED — ${feedback}`,
           });
           if (!approved) {
