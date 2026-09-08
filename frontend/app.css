@@ -518,6 +518,7 @@ body:has(.termdrawer) .jump {
 /* All text spans containing Material icon names must use the icon font.
    Without this, "chat_bubble" etc. would render as the literal word. */
 .avatar, .subtag, .ghosttag, .nicon, .subcount, .mini-cron, .brand, .nreadbtn, .iconbtn, .tabx,
+.ficon,
 [material-icon] {
   font-family: 'Material Symbols Rounded';
   font-weight: normal;
@@ -533,6 +534,23 @@ body:has(.termdrawer) .jump {
 }
 .avatar { font-size: 17px; }
 .brand { font-size: 14px; }
+
+/* Inline Material icon for use inside free text (badges, tabs, headings).
+   Keeps surrounding text in the UI font — only this span uses the icon font,
+   so CJK/emoji around it keep rendering normally. */
+.mi {
+  font-family: 'Material Symbols Rounded';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 1.1em;
+  line-height: 1;
+  display: inline-block;
+  vertical-align: -0.18em;
+  white-space: nowrap;
+  direction: ltr;
+  speak: never;
+  user-select: none;
+}
 
 /* Override emoji rendering with Material Icons */
 .iconbtn-glyph.emoji-replace {

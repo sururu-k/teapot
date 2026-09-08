@@ -3,7 +3,7 @@
  * Agents are in-process async loops (I/O bound only); all CPU-heavy work is
  * delegated to subprocesses managed by the bash tool with hard timeouts.
  */
-import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, statSync, renameSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, statSync, renameSync, rmSync } from "node:fs";
 
 import { randomUUID } from "node:crypto";
 import path from "node:path";
@@ -1090,27 +1090,25 @@ if (active().length === 0) wake();
     return /^git@/.test(value) || /^https?:\/\//.test(value) || /^ssh:\/\//.test(value);
   }
 
-  /** Clone a git repo into `dir`. Errors are surfaced to the caller. */
+  /** Clone a git repo into `dir` (must not exist yet). Errors are surfaced
+  to the caller; a failed clone never leaves a half-written `dir` behind. */
   private async cloneRepository(url: string, dir: string): Promise<void> {
     const parent = path.dirname(dir);
     mkdirSync(parent, { recursive: true });
-    const name = path.basename(dir);
+    if (existsSync(dir)) {
+      throw new Error(`workspace already exists: ${dir}`);
+    }
     const tmp = path.join(parent, `.tmp-clone-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-    const { execSync } = await import("node:child_process");
     try {
-      execSync(`git clone --quiet ${this.shellEscape(url)} ${this.shellEscape(tmp)}`, { timeout: 120_000 });
+      // argv array — no shell, so no quoting/escaping hazards
+      execFileSync("git", ["clone", "--quiet", url, tmp], { timeout: 120_000 });
       renameSync(tmp, dir);
       console.log(`[teapot] cloned ${url} → ${dir}`);
     } catch (err) {
-      // clean up the temp dir on failure
-      try { renameSync(tmp, dir); } catch { /* ignore */ }
+      // remove the half-cloned temp dir; never touch `dir` on failure
+      try { rmSync(tmp, { recursive: true, force: true }); } catch { /* ignore */ }
       throw new Error(`git clone failed: ${(err as Error).message}`);
     }
-  }
-
-  /** Escape a string for safe use inside a shell command (single-quote wrapper). */
-  private shellEscape(s: string): string {
-    return `'${s.replace(/'/g, "'\\''")}'`;
   }
 
   async removeAgent(id: string): Promise<void> {

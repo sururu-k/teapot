@@ -22,9 +22,9 @@ declare const __APP_VERSION__: string;
 
 /* ---------- types ---------- */
 interface Agent {
-  id: string; status: string; statusReason: string; ワークスペース: string;
+  id: string; status: string; statusReason: string; workspace: string;
   session: string; branch: string; goal: { status: string; text: string; verify?: string; audit?: { verdict: "approved" | "changes-required"; feedback: string; at: string } };
-  ワークスペースMissing?: boolean;
+  workspaceMissing?: boolean;
   latestProgress: any; stats: any; model: string; provider?: string;
   pendingPrompts?: number;
   todo?: string;
@@ -44,7 +44,7 @@ const AUTHORS: Record<string, { name: string; icon: string; color: string }> = {
   user: { name: "you", icon: "person", color: "#faa81a" },
   message: { name: "エージェント", icon: "chat_bubble", color: "#5865f2" },
   progress: { name: "progress", icon: "trending_up", color: "#3ba55d" },
-  question: { name: "エージェント", icon: "help", color: "#5865f2" }, // ask_user comes from the エージェント too
+  question: { name: "エージェント", icon: "help", color: "#5865f2" }, // ask_user comes from the agent too
 };
 const HARNESS_AUTH = { name: "harness", icon: "megaphone", color: "#3ba55d" };
 
@@ -78,7 +78,7 @@ const THEMES: ThemeMeta[] = [
   { key: "ramune", label: "Ramune", mode: "light", sw: ["#ddeff7", "#fbfeff", "#1d86ae"] },
 ];
 
-/** xterm palette pulled from the アクティブ theme's CSS variables (fallback: dark) */
+/** xterm palette pulled from the active theme's CSS variables (fallback: dark) */
 function themeColors(): { background: string; foreground: string } {
   let bg = "";
   let fg = "";
@@ -90,7 +90,7 @@ function themeColors(): { background: string; foreground: string } {
   return { background: bg || "#0d0e12", foreground: fg || "#dcdee4" };
 }
 
-/** author for an event — mirrored sub-エージェント rows act under their own id */
+/** author for an event — mirrored sub-agent rows act under their own id */
 const authorOf = (e: Ev) => {
   if (e.data?.actor) return { name: `@${String(e.data.actor)}`, icon: "jigsaw", color: "#3ba0c9" };
   if (e.type === "tool_call" || e.type === "tool_result")
@@ -152,15 +152,15 @@ const wsTokenQuery = () => {
 
 /* ---------- app ---------- */
 export default function App() {
-  const [エージェントs, setAgents] = createSignal<Agent[]>([]);
+  const [agents, setAgents] = createSignal<Agent[]>([]);
   const [selected, setSelected] = createSignal<string | null>(null);
   // internal session id backing the currently viewed timeline — the stable
   // handle behind /session/<id> URLs and every events fetch (?session=…)
   const [timelineId, setTimelineId] = createSignal<string>("");
-  // internal session id → owning エージェント id, and エージェント id → its session ids
-  // (newest first) — ONE /api/sessions call serves every エージェント, refetched
-  // only when the エージェント SET changes (not on every poll: the fan-out of one
-  // request per エージェント per switch hammered the server for identical data)
+  // internal session id → owning agent id, and agent id → its session ids
+  // (newest first) — ONE /api/sessions call serves every agent, refetched
+  // only when the agent SET changes (not on every poll: the fan-out of one
+  // request per agent per switch hammered the server for identical data)
   const [masterSessionIndex, setMasterSessionIndex] = createSignal<Map<string, string>>(new Map());
   const [sessionsByAgent, setSessionsByAgent] = createSignal<Map<string, string[]>>(new Map());
   let sessionIndexFetched = false;
@@ -172,20 +172,20 @@ export default function App() {
       const byId = new Map<string, string>();
       const byAgent = new Map<string, string[]>();
       for (const s of r.sessions ?? []) {
-        byId.set(s.id, s.エージェントId);
-        const list = byAgent.get(s.エージェントId) ?? [];
+        byId.set(s.id, s.agentId);
+        const list = byAgent.get(s.agentId) ?? [];
         list.push(s.id); // server returns newest first
-        byAgent.set(s.エージェントId, list);
+        byAgent.set(s.agentId, list);
       }
       setMasterSessionIndex(byId);
       setSessionsByAgent(byAgent);
-    } catch { /* transient — retried on next エージェント-set change */ }
+    } catch { /* transient — retried on next agent-set change */ }
   }
   const [events, setEvents] = createSignal<Ev[]>([]);
   const [eventsTotal, setEventsTotal] = createSignal(0); // server-side count (window is capped)
   const [branches, setBranches] = createSignal<any[]>([]);
   const [metrics, setMetrics] = createSignal<any>(null);
-  // per-session unsent prompt drafts — switching エージェントs preserves what each
+  // per-session unsent prompt drafts — switching agents preserves what each
   // one was typing instead of showing the previous session's text
   const drafts = new Map<string, string>();
   const [draft, setDraft] = createSignal(drafts.get(selected() ?? "") ?? "");
@@ -233,18 +233,18 @@ export default function App() {
     sysMql?.addEventListener("change", onChange);
     onCleanup(() => sysMql?.removeEventListener("change", onChange));
   });
-  // single writer: resolves the アクティブ theme and slaps it on <html>
+  // single writer: resolves the active theme and slaps it on <html>
   createEffect(() => {
-    const アクティブ = themeAuto()
+    const active = themeAuto()
       ? sysPrefersLight()
         ? sysLightTheme()
         : sysDarkTheme()
       : fixedTheme();
-    document.documentElement.dataset.theme = アクティブ;
+    document.documentElement.dataset.theme = active;
     // light/dark appearance for components that ship their own palettes
     // (e.g. shiki dual-theme code blocks)
     document.documentElement.dataset.appearance =
-      THEMES.find((t) => t.key === アクティブ)?.mode ?? "dark";
+      THEMES.find((t) => t.key === active)?.mode ?? "dark";
   });
   // model switcher state
   const [modelProvider, setModelProvider] = createSignal("");
@@ -261,13 +261,13 @@ export default function App() {
     } catch { setModels([]); }
   }
   /** "ctx 1m · $3/M in · $15/M out" for the draft (or current) model */
-  /** Modality badge: text/image/audio/video/file for a model's input/output */
+  /** Modality badge for a model's input/output (plain text — shown in .meta) */
   const modalityBadge = (m?: { modalities?: { input: string[]; output: string[] } }): string => {
-    const icon: Record<string, string> = {
-      text: "article", image: "image", audio: "audiotrack", video: "movie", file: "attach_file",
+    const label: Record<string, string> = {
+      text: "テキスト", image: "画像", audio: "音声", video: "動画", file: "ファイル",
     };
     const side = (list?: string[]) =>
-      (list ?? ["text"]).map((k) => icon[k] ?? k).join("");
+      (list ?? ["text"]).map((k) => label[k] ?? k).join("・");
     if (!m?.modalities) return "";
     return `${side(m.modalities.input)} → ${side(m.modalities.output)}`;
   };
@@ -278,7 +278,7 @@ export default function App() {
     if (!m) return "";
     const parts: string[] = [];
     const badge = modalityBadge(m);
-    if (badge && badge !== "article → article") parts.push(badge); // text-only is the default — no noise
+    if (badge && badge !== "テキスト → テキスト") parts.push(badge); // text-only is the default — no noise
     if (m.contextLength) parts.push(`ctx ${fmtK(m.contextLength)} tok`);
     const price = (p?: number) =>
       p === undefined ? "" : `${p * 1e6 >= 10 ? Math.round(p * 1e6) : +(p * 1e6).toFixed(1)}/M`;
@@ -292,23 +292,23 @@ export default function App() {
   };
   // Keep the switcher aligned with the selected session. Keyed on STRINGS,
   // not on sel() identity: this used to re-run (and re-fetch /api/models!)
-  // on every poll in which the エージェント's snapshot object changed — visibly
+  // on every poll in which the agent's snapshot object changed — visibly
   // rebuilding the whole 🧦 model section = the "right panel flashes" bug.
   // FIX: the draft/provider signals are NOT dependencies — reading them
-  // reアクティブly cleared the draft on every keystroke and reverted the
+  // reactively cleared the draft on every keystroke and reverted the
   // provider dropdown on manual change (the "right panel model switching
   // doesn't work" bug). Clear draft / sync provider only when the selected
-  // エージェント actually changes.
+  // agent actually changes.
   let _prevModelAgent: string | null = null;
   createEffect(() => {
     const id = selected();
     if (!id) return;
-    const a = エージェントs().find((x) => x.id === id);
+    const a = agents().find((x) => x.id === id);
     const prov = a?.provider || cfg().defaultProvider || providerList()[0] || "";
     if (!a) return;
     if (id !== _prevModelAgent) {
       _prevModelAgent = id;
-      // sync provider to the newly selected エージェント's provider
+      // sync provider to the newly selected agent's provider
       if (untrack(() => modelProvider()) !== prov) {
         setModelProvider(prov);
         loadModels(prov);
@@ -316,9 +316,9 @@ export default function App() {
       // clear stale draft only on session switch, not on every poll
       if (untrack(() => modelDraft())) setModelDraft("");
     } else {
-      // same エージェント — keep user's draft/provider edits intact; only
+      // same agent — keep user's draft/provider edits intact; only
       // re-sync if the server's provider changed externally and the user
-      // isn't アクティブly editing (draft empty means not mid-type)
+      // isn't actively editing (draft empty means not mid-type)
       const curProv = untrack(() => modelProvider());
       const curDraft = untrack(() => modelDraft());
       if (!curDraft && curProv !== prov) {
@@ -398,7 +398,7 @@ export default function App() {
   // A finish() turn often streams REASONING-ONLY (empty text) — the live
   // buffer then shows a 💭 thinking bubble that outlives the run: nothing
   // else arrives to overwrite it, and the refresh-path cleanup only runs on
-  // unrelated events. The エージェント's status is the ground truth: the moment it
+  // unrelated events. The agent's status is the ground truth: the moment it
   // leaves running/waiting, any leftover live buffer is dead and must go.
   // (Reload "fixes" it today only because the buffer is memory-only.)
   createEffect(() => {
@@ -441,17 +441,17 @@ export default function App() {
   // on. Re-sync once on return: jump to the tail iff the reader was still
   // following when they left. Re-armed on every session switch.
 
-  // Pending echoes must clear at EXACTLY the moment the ⏳ キュー badge clears:
+  // Pending echoes must clear at EXACTLY the moment the ⏳ queue badge clears:
   // both mean "the model has consumed the message". The badge counts
   // snapshot().pendingPrompts, which drops the instant drainPendingPrompts()
-  // moves the キュー into this.messages — so reconcile against that count
+  // moves the queue into this.messages — so reconcile against that count
   // instead of waiting for every prompt-delivered note to arrive over WS (the
   // badge and the echo visibly disagreed during that gap).
   createEffect(() => {
-    const キューd = sel()?.pendingPrompts ?? 0;
+    const queued = sel()?.pendingPrompts ?? 0;
     setPendingMsgs((list) => {
-      if (キューd >= list.length) return list;
-      return list.slice(0, キューd); // newest entries were consumed by the model
+      if (queued >= list.length) return list;
+      return list.slice(0, queued); // newest entries were consumed by the model
     });
   });
   createEffect(() => {
@@ -470,10 +470,10 @@ export default function App() {
     document.addEventListener("visibilitychange", onVisible);
     onCleanup(() => document.removeEventListener("visibilitychange", onVisible));
   });
-  const sel = createMemo(() => エージェントs().find((a) => a.id === selected()));
+  const sel = createMemo(() => agents().find((a) => a.id === selected()));
   // prompt being edited → edit-prompt fork dialog. SETTLED user prompts only:
-  // a pending (キューd, not yet delivered) message offers ✕ cancel instead —
-  // editing implies the model may have seen it, which is false while キューd.
+  // a pending (queued, not yet delivered) message offers ✕ cancel instead —
+  // editing implies the model may have seen it, which is false while queued.
   const [editing, setEditing] = createSignal<{ eventId: string; text: string } | null>(null);
   // ask_user calls that already have their tool_result in the log — used to
   // disable the option buttons (answering twice sent duplicate prompts)
@@ -492,7 +492,7 @@ export default function App() {
   /* ---------- notification center (in-app only; push later) ---------- */
   type Notif = {
     id: string;
-    エージェントId: string;
+    agentId: string;
     kind: "progress" | "finish" | "question" | "error";
     title: string;
     body: string;
@@ -502,7 +502,7 @@ export default function App() {
     eventId?: string;
   };
   const [notifs, setNotifs] = createSignal<Notif[]>([]);
-  // hide ghost sessions (ワークスペース missing on disk) — a toggle,
+  // hide ghost sessions (workspace missing on disk) — a toggle,
   // because they still hold history the operator may need
   const [hideGhosts, setHideGhosts] = createSignal(
     localStorage.getItem("teapot.hideGhosts") === "1",
@@ -512,22 +512,22 @@ export default function App() {
   /** mark all notifications from ONE session read — fired when the operator
    *  is following the timeline tail (they are, by definition, looking at the
    *  newest content those notifications point to) */
-  const markSessionRead = (エージェントId: string) => {
+  const markSessionRead = (agentId: string) => {
     setNotifs((list) => {
       let changed = false;
       const next = list.map((n) => {
-        if (n.read || n.エージェントId !== エージェントId) return n;
+        if (n.read || n.agentId !== agentId) return n;
         changed = true;
         return { ...n, read: true };
       });
       return changed ? next : list; // avoid identity churn on no-op runs
     });
   };
-  /** unread for one エージェント INCLUDING its whole sub-tree (subs, sub-subs…) */
-  const subtreeUnread = (エージェントId: string): number => {
-    let total = notifs().filter((n) => !n.read && n.エージェントId === エージェントId).length;
-    for (const child of エージェントs()) {
-      if (child.parent === エージェントId)
+  /** unread for one agent INCLUDING its whole sub-tree (subs, sub-subs…) */
+  const subtreeUnread = (agentId: string): number => {
+    let total = notifs().filter((n) => !n.read && n.agentId === agentId).length;
+    for (const child of agents()) {
+      if (child.parent === agentId)
         total += subtreeUnread(child.id);
     }
     return total;
@@ -539,12 +539,12 @@ export default function App() {
     );
   };
   /** events worth telling the operator about, even on another session/tab */
-  const maybeNotify = (エージェントId: string, ev: any) => {
-    const who = エージェントs().find((a) => a.id === エージェントId)?.id ?? エージェントId;
+  const maybeNotify = (agentId: string, ev: any) => {
+    const who = agents().find((a) => a.id === agentId)?.id ?? agentId;
     const eid = typeof ev.id === "string" ? ev.id : undefined;
     if (ev.type === "message" && ev.data?.final === true) {
       addNotif({
-        エージェントId,
+        agentId,
         kind: "finish",
         title: `${who} finished`,
         body: String(ev.data.content ?? "").slice(0, 300),
@@ -552,7 +552,7 @@ export default function App() {
       });
     } else if (ev.type === "question") {
       addNotif({
-        エージェントId,
+        agentId,
         kind: "question",
         title: `${who} asks a question`,
         body: String(ev.data.question ?? "").slice(0, 300),
@@ -560,7 +560,7 @@ export default function App() {
       });
     } else if (ev.type === "error") {
       addNotif({
-        エージェントId,
+        agentId,
         kind: "error",
         title: `${who} hit an error`,
         body: String(ev.data.message ?? "").slice(0, 300),
@@ -568,7 +568,7 @@ export default function App() {
       });
     } else if (ev.type === "progress") {
       addNotif({
-        エージェントId,
+        agentId,
         kind: "progress",
         title: `${who}: ${String(ev.data.doing ?? "progress")}`.slice(0, 120),
         body: [ev.data.recent && `recent: ${ev.data.recent}`, ev.data.next && `next: ${ev.data.next}`]
@@ -641,7 +641,7 @@ export default function App() {
   const chatEvents = createMemo(() => {
     const { consumed } = pairInfo();
     // Reasoning-only assistant turns (content empty, only 💭 reasoning) used
-    // to render as their own エージェント bubble between every pair of tool rows,
+    // to render as their own agent bubble between every pair of tool rows,
     // which also broke "consecutive bash" grouping. They now ride along with
     // the tool run: a reasoning-only turn is dropped when the nearest visible
     // row before it is a tool event — its thinking belongs to that action.
@@ -673,7 +673,7 @@ export default function App() {
       // paired tool results live inside their call's merged row
       if (e.type === "tool_result") return !consumed.has(e.id);
       // tool-call carrier turns have no visible payload — the ToolRow below
-      // already tells that story; an empty エージェント bubble is just noise
+      // already tells that story; an empty agent bubble is just noise
       if (e.type === "message") {
         const content = String(e.data?.content ?? "");
         // reasoning-only turn right after a tool result: the next tool row's
@@ -743,12 +743,12 @@ export default function App() {
     }
     // append optimistic echoes. An echo lives from SEND until its text enters
     // an LLM call payload — signalled by the prompt-delivered system_note
-    // (same promptId). The LOGGED prompt row appears much earlier (at enキュー
+    // (same promptId). The LOGGED prompt row appears much earlier (at enqueue
     // time), so "drop when logged" made the pending indicator flash for ~120ms
-    // and vanish while the message was still キューd for the model.
+    // and vanish while the message was still queued for the model.
     //
     // The logged prompt row of a NOT-YET-DELIVERED message must NOT render as
-    // a settled timeline row: it would show the キューd text twice (a "sent"
+    // a settled timeline row: it would show the queued text twice (a "sent"
     // row at its log position AND the pending echo at the bottom) and imply
     // the model already saw it. Until prompt-delivered arrives, the log row is
     // hidden and the pending echo alone represents the message.
@@ -778,7 +778,7 @@ export default function App() {
     // sits wherever the operator typed it, NOT where the model actually
     // consumed it. Re-sequence it to its prompt-delivered note's position so
     // the timeline reads in true context order: the message lands between the
-    // エージェント output that came before the delivery and the reply after it.
+    // agent output that came before the delivery and the reply after it.
     for (const e of visible) {
       if (e.type !== "prompt" || e.data?.source !== "user") continue;
       const pid = String((e.data as any)?.promptId ?? "");
@@ -843,8 +843,8 @@ export default function App() {
     onCleanup(() => window.removeEventListener("teapot:unauthorized", onUnauthorized));
   });
 
-  // operator task list draft — seeded per selected エージェント; while the user
-  // hasn't touched it, it follows server updates (the エージェント edits it too)
+  // operator task list draft — seeded per selected agent; while the user
+  // hasn't touched it, it follows server updates (the agent edits it too)
   const [todoDraft, setTodoDraft] = createSignal("");
   // false = rendered checklist (default), true = raw markdown editor
   const [todoViewMode, setTodoViewMode] = createSignal(false);
@@ -852,26 +852,26 @@ export default function App() {
   let todoSeededFor = "";
   createEffect(() => {
     const id = selected();
-    const serverTodo = エージェントs().find((a) => a.id === id)?.todo ?? "";
+    const serverTodo = agents().find((a) => a.id === id)?.todo ?? "";
     if (id && id !== todoSeededFor) {
       todoSeededFor = id;
       setTodoDirty(false);
       setTodoDraft(serverTodo);
     } else if (id && !todoDirty()) {
-      setTodoDraft(serverTodo); // stay current with エージェント-side set_todo edits
+      setTodoDraft(serverTodo); // stay current with agent-side set_todo edits
     }
   });
   const saveTodo = async () => {
     const notify = (document.getElementById("todo-notify") as HTMLInputElement)?.checked ?? true;
     if (!selected()) return;
     try {
-      await api(`/api/エージェントs/${selected()}/todo`, {
+      await api(`/api/agents/${selected()}/todo`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text: todoDraft(), notify }),
       });
       setTodoDirty(false);
-      flashHint(`タスクを保存しました${notify && todoDraft().trim() ? " & notification キューd" : ""}`);
+      flashHint(`tasks saved${notify && todoDraft().trim() ? " & notification queued" : ""}`);
       refreshAgents();
     } catch (ex) {
       flashHint(`save failed: ${(ex as Error).message}`);
@@ -892,33 +892,33 @@ export default function App() {
   });
 
   const refreshAgents = () =>
-    api("/api/エージェントs")
+    api("/api/agents")
       .then((d) => {
-        let エージェントSetChanged = false;
+        let agentSetChanged = false;
         setAgents((prev) => {
           // Reference-stabilize snapshots: the server re-serializes every
-          // エージェント on each poll, and new object identities made Solid re-run
+          // agent on each poll, and new object identities made Solid re-run
           // EVERY expression bound to sel()*.x (the "whole panel flashes"
           // effect). Reuse the previous object when the snapshot is equal,
           // so unchanged panels skip their fine-grained updates entirely.
           const prevById = new Map(prev.map((a) => [a.id, a]));
-          if (prev.length !== (d.エージェントs ?? []).length) エージェントSetChanged = true;
-          return (d.エージェントs ?? []).map((a: Agent) => {
+          if (prev.length !== (d.agents ?? []).length) agentSetChanged = true;
+          return (d.agents ?? []).map((a: Agent) => {
             const p = prevById.get(a.id);
-            if (!p) エージェントSetChanged = true;
+            if (!p) agentSetChanged = true;
             return p && JSON.stringify(p) === JSON.stringify(a) ? p : a;
           });
         });
-        // the session index is ONE request for ALL エージェントs — only needed when
-        // the エージェント set actually changes, not on every poll
-        if (エージェントSetChanged) void refreshSessionIndex();
+        // the session index is ONE request for ALL agents — only needed when
+        // the agent set actually changes, not on every poll
+        if (agentSetChanged) void refreshSessionIndex();
       })
       .catch(() => {});
   const refreshMetrics = () => api("/api/metrics").then(setMetrics).catch(() => {});
   // scheduled (cron) tasks — shown in the right panel so "what runs when" is legible
   const [tasks, setTasks] = createSignal<any[]>([]);
   const loadTasks = () => api("/api/tasks").then((d) => setTasks(d.tasks)).catch(() => {});
-  const エージェントTasks = (id: string | null) => tasks().filter((t) => t.エージェント === id);
+  const agentTasks = (id: string | null) => tasks().filter((t) => t.agent === id);
 
   // sidebar tree: subs hang under their parent, collapsible per parent
   const [collapsedSubs, setCollapsedSubs] = createSignal<Set<string>>((() => {
@@ -934,15 +934,15 @@ export default function App() {
     localStorage.setItem("teapot.collapsed", JSON.stringify([...next]));
   };
   const treeRows = createMemo(() => {
-    // 👻 toggle: drop ghost sessions (ワークスペース missing on disk) from the
+    // 👻 toggle: drop ghost sessions (workspace missing on disk) from the
     // sidebar tree entirely — they are noise once you know about them
-    const list = hideGhosts() ? エージェントs().filter((a) => !a.ワークスペースMissing) : エージェントs();
+    const list = hideGhosts() ? agents().filter((a) => !a.workspaceMissing) : agents();
     const byParent = new Map<string, Agent[]>();
     const roots: Agent[] = [];
     for (const a of list) {
       const isSub = a.parent && list.some((p) => p.id === a.parent);
       if (isSub) {
-        // newest sub first — freshly spawned エージェントs are what you want to see
+        // newest sub first — freshly spawned agents are what you want to see
         if (!byParent.has(a.parent!)) byParent.set(a.parent!, []);
         byParent.get(a.parent!)!.unshift(a);
       } else roots.push(a);
@@ -971,8 +971,8 @@ export default function App() {
   // WITHIN one log, so a cross-session key collision made stabilize() return
   // another session's row — the "teapot-b3c520e0 shows teapot-3's timeline" bug.
   function cacheKey(ev: { id: string }): string {
-    // scoped by the internal session id (the log), NOT the エージェント id — エージェント
-    // ids are recycled across incarnations, so two incarnations of one エージェント
+    // scoped by the internal session id (the log), NOT the agent id — agent
+    // ids are recycled across incarnations, so two incarnations of one agent
     // must not share cache entries either
     return `${timelineId() || (selected() ?? "?")}:${ev.id}`;
   }
@@ -1069,7 +1069,7 @@ export default function App() {
       const tid = timelineId();
       const sessQ = tid && tid !== id ? `&session=${encodeURIComponent(tid)}` : "";
       const res = await api(
-        `/api/エージェントs/${id}/events?limit=300&before=${encodeURIComponent(oldest.id)}${sessQ}${bf ? `&branch=${encodeURIComponent(bf)}` : ""}`,
+        `/api/agents/${id}/events?limit=300&before=${encodeURIComponent(oldest.id)}${sessQ}${bf ? `&branch=${encodeURIComponent(bf)}` : ""}`,
       );
       const page: Ev[] = res.events ?? [];
       if (page.length === 0) { setOlderDone(true); return; }
@@ -1106,11 +1106,11 @@ export default function App() {
       const needsBranches = genAtStart !== lastBranchesGen || !branches().length;
       const sessQ = tid && tid !== id ? `&session=${encodeURIComponent(tid)}` : "";
       const [ev, br, sk] = await Promise.all([
-        api(`/api/エージェントs/${id}/events?limit=300${sessQ}${bf ? `&branch=${encodeURIComponent(bf)}` : ""}`),
+        api(`/api/agents/${id}/events?limit=300${sessQ}${bf ? `&branch=${encodeURIComponent(bf)}` : ""}`),
         needsBranches
-          ? api(`/api/エージェントs/${id}/branches`)
+          ? api(`/api/agents/${id}/branches`)
           : Promise.resolve({ branches: branches() }),
-        api(`/api/エージェントs/${id}/skills`).catch(() => ({ skills: [] })),
+        api(`/api/agents/${id}/skills`).catch(() => ({ skills: [] })),
       ]);
       if (needsBranches) lastBranchesGen = genAtStart;
       // stale iff a DIFFERENT session is now selected or a switch happened
@@ -1127,7 +1127,7 @@ export default function App() {
       setEventsTotal(ev.total ?? ev.events.length);
       setBranches(br.branches);
       setAgentSkills(sk.skills ?? []);
-    } catch { /* エージェント may be gone */ }
+    } catch { /* agent may be gone */ }
   }
 
   function feedEl() { return document.querySelector(".feed"); }
@@ -1160,9 +1160,9 @@ export default function App() {
   const timelineCache = new Map<string, { events: Ev[]; total: number; at: number }>();
   const TIMELINE_CACHE_MAX = 6;
 
-  /** newest internal session id owned by an エージェント (server returns newest first) */
-  function latestSessionOf(エージェントId: string): string | null {
-    return sessionsByAgent().get(エージェントId)?.[0] ?? null;
+  /** newest internal session id owned by an agent (server returns newest first) */
+  function latestSessionOf(agentId: string): string | null {
+    return sessionsByAgent().get(agentId)?.[0] ?? null;
   }
 
   async function select(id: string, push = true) {
@@ -1173,8 +1173,8 @@ export default function App() {
     // bump FIRST so any in-flight fetch for the previous session lands on a
     // dead generation and is dropped instead of overwriting this one's rows
     feedGeneration++;
-    // resolve the エージェント's CURRENT internal session id — the timeline handle.
-    // Falls back to the エージェント id for brand-new エージェントs whose first session dir
+    // resolve the agent's CURRENT internal session id — the timeline handle.
+    // Falls back to the agent id for brand-new agents whose first session dir
     // isn't listed yet (the events fetch still works: same log).
     if (!sessionsByAgent().size) void refreshSessionIndex(); // first select before index landed
     let tid = latestSessionOf(id) ?? id;
@@ -1192,7 +1192,7 @@ export default function App() {
       // which read as "the old conversation showing up in the new session"
       setEvents([]);
       evCache.clear(); // event ids are per-log (e1, e2…) — never share across sessions
-      // NOTE: live buffers are per-エージェント — leaving a session must NOT drop its
+      // NOTE: live buffers are per-agent — leaving a session must NOT drop its
       // streaming bubble; the map keeps every session's stream independently.
       setCompacting(null);
       setMissed(0);
@@ -1211,7 +1211,7 @@ export default function App() {
     setLoadingOlder(false);
     setPendingMsgs([]);
     localStorage.setItem("teapot.session", id);
-    navigate(tid, push); // URL carries the internal session id, not the エージェント id
+    navigate(tid, push); // URL carries the internal session id, not the agent id
     // HYDRATE from cache first: rows paint immediately (no blank flash), and
     // loadEvents below merges in whatever happened since. Cached events are
     // re-stabilized into evCache so reference identity survives the switch.
@@ -1226,11 +1226,11 @@ export default function App() {
       });
     }
     // lazy sessions sit in "stopped" until touched — clicking loads them
-    api(`/api/エージェントs/${id}/load`, { method: "POST" }).then(refreshAgents).catch(() => {});
+    api(`/api/agents/${id}/load`, { method: "POST" }).then(refreshAgents).catch(() => {});
     await loadEvents(id, tid);
     if (selected() !== id) return; // another switch won while we were loading
     // the freshly fetched snapshot is authoritative: a compaction may be
-    // mid-flight on this session (missed bus events while another tab/エージェント
+    // mid-flight on this session (missed bus events while another tab/agent
     // was selected) — seed the banner from ctx.compacting
     setCompacting(
       sel()?.ctx?.compacting ? { phase: String(sel()!.ctx!.compacting) } : null,
@@ -1267,21 +1267,21 @@ export default function App() {
     // event types that don't change the feed — refreshing on every one of
     // these would hammer /events several times per turn for nothing
     const FEED_IRRELEVANT = new Set(["state", "usage", "session_start"]);
-    // (live buffers are keyed per エージェント in liveByAgent — see the App body)
+    // (live buffers are keyed per agent in liveByAgent — see the App body)
     ws.onmessage = (m) => {
       const msg = JSON.parse(m.data);
       if (msg.kind === "ping" || msg.kind === "pong") return;
       if (msg.kind === "llm-delta") {
-        // update THIS エージェント's buffer only — other sessions keep streaming in
+        // update THIS agent's buffer only — other sessions keep streaming in
         // the background and their bubble must survive session switches
         setLiveByAgent((prev) => {
           const m = new Map(prev);
-          m.set(msg.エージェントId, { text: msg.text ?? "", reasoning: msg.reasoning ?? "", at: Date.now() });
+          m.set(msg.agentId, { text: msg.text ?? "", reasoning: msg.reasoning ?? "", at: Date.now() });
           return m;
         });
         // thinking-timer bookkeeping (selected session only): start the clock
         // when reasoning arrives with no text yet; reset once real text flows
-        if (msg.エージェントId === selected()) {
+        if (msg.agentId === selected()) {
           const r = String(msg.reasoning ?? "");
           const t = String(msg.text ?? "");
           if (r && !t) {
@@ -1293,22 +1293,22 @@ export default function App() {
         return;
       }
       if (msg.kind === "compaction-progress") {
-        if (msg.エージェントId !== selected()) return;
+        if (msg.agentId !== selected()) return;
         if (msg.phase === "done") setCompacting(null);
         else setCompacting({ phase: msg.phase, summarized: msg.summarized });
         // the phase banner rides on top of the feed — no refresh needed until
         // the compaction event itself lands
         return;
       }
-      // エージェント-update now carries the fresh snapshot: apply it directly —
-      // no GET /api/エージェントs round-trip per event
-      if (msg.kind === "エージェント-update" && msg.snapshot) {
+      // agent-update now carries the fresh snapshot: apply it directly —
+      // no GET /api/agents round-trip per event
+      if (msg.kind === "agent-update" && msg.snapshot) {
         setAgents((prev) => {
           const i = prev.findIndex((a) => a.id === msg.snapshot.id);
           const next = msg.snapshot;
           if (i === -1) return [...prev, next];
           // content-equal → keep the OLD object: a new identity for unchanged
-          // data re-ran every expression bound to that エージェント and was the last
+          // data re-ran every expression bound to that agent and was the last
           // source of the rare right-panel flash
           const cur = prev[i]!;
           const same =
@@ -1326,22 +1326,22 @@ export default function App() {
         // drops the echo. BOTH fall through so the feed refresh below picks up
         // the logged prompt row in the same pass (the old early-returns made
         // the "sent ✓" echo linger until some unrelated event refreshed).
-        if (et === "system_note" && ed.event === "prompt-delivered" && msg.エージェントId === selected()) {
+        if (et === "system_note" && ed.event === "prompt-delivered" && msg.agentId === selected()) {
           // delivery = the message now belongs to the log row. REMOVE the echo
           // from the list (the display filter alone kept it forever, and any
           // filter regression resurfaced it as a duplicate row).
           setPendingMsgs((list) => list.filter((p) => p.promptId !== ed.promptId));
-        } else if (et === "system_note" && ed.event === "prompt-cancelled" && msg.エージェントId === selected()) {
+        } else if (et === "system_note" && ed.event === "prompt-cancelled" && msg.agentId === selected()) {
           setPendingMsgs((list) => list.filter((p) => p.promptId !== ed.promptId));
         }
         if (FEED_IRRELEVANT.has(et) && !NOTE_FEED_TYPES.has(et)) return;
         // notify the operator about notable moments from ANY session — that's
         // the point of the notification center (progress / finish / question /
         // error), even when the timeline isn't being watched
-        maybeNotify(msg.エージェントId, msg.event);
+        maybeNotify(msg.agentId, msg.event);
         // only the affected session's feed needs reloading — other sessions'
         // timelines are fetched on switch, not eagerly
-        if (msg.event?.エージェント !== selected()) return;
+        if (msg.event?.agent !== selected()) return;
       }
       // hidden tab: defer feed work until the tab is visible again — layout
       // is paused anyway, so fetching + re-rendering now is pure waste. The
@@ -1353,7 +1353,7 @@ export default function App() {
       if (timer) return;
       // tool results land here one by one; a 400ms debounce made each bash
       // completion feel lost ("switch away and back shows it") — the fetch
-      // itself is mtime-cached and cヒープ, so tighten the cadence instead
+      // itself is mtime-cached and cheap, so tighten the cadence instead
       timer = setTimeout(runFeedRefresh, 120);
     };
     pendingRefresh = false;
@@ -1365,7 +1365,7 @@ export default function App() {
           // compare last event ID, not array length: the /events window is
           // capped at 300, so long sessions have a CONSTANT length and a
           // length check never noticed new events (leaving the live bubble
-          // blinking forever after the エージェント went idle)
+          // blinking forever after the agent went idle)
           const beforeId = events().at(-1)?.id;
           const beforeTotal = eventsTotal();
           const fetchStartedAt = Date.now();
@@ -1376,7 +1376,7 @@ export default function App() {
             // fetch start) raced the stream's natural pauses and cleared a
             // LIVE bubble mid-reply — the "output flashes, then disappears"
             // bug. Compare content instead: drop the buffer only when the
-            // log caught up with it (or the エージェント went idle with nothing new).
+            // log caught up with it (or the agent went idle with nothing new).
             const buf = live();
             if (buf && buf.text) {
               // covered = ANY persisted assistant message already carries this
@@ -1394,7 +1394,7 @@ export default function App() {
                 );
               if (covered) setLive(null);
             } else if (buf && !buf.text) {
-              // reasoning-only buffer with no text: drop as soon as the エージェント
+              // reasoning-only buffer with no text: drop as soon as the agent
               // stops streaming (no text will ever persist for it)
               if (sel()?.status !== "running") setLive(null);
             }
@@ -1431,7 +1431,7 @@ export default function App() {
 
   /* ---------- /session/<internalId> routing ---------- */
   // The URL carries the INTERNAL session id (the chat.jsonl's directory
-  // name), not the エージェント id: エージェント ids are recycled across incarnations,
+  // name), not the agent id: agent ids are recycled across incarnations,
   // internal session ids never are — deep links stay valid forever.
   const pathId = () => decodeURIComponent(location.pathname.split("/")[2] ?? "");
   function navigate(sessionId: string, push = true) {
@@ -1441,7 +1441,7 @@ export default function App() {
   }
   window.addEventListener("popstate", () => {
     const sid = pathId();
-    // resolve the internal id to its owning エージェント and open THAT エージェント's tab;
+    // resolve the internal id to its owning agent and open THAT agent's tab;
     // the timeline itself is fetched by ?session=<internalId> in loadEvents
     const owner = masterSessionIndex().get(sid);
     if (owner && owner !== selected()) select(owner, false);
@@ -1451,7 +1451,7 @@ export default function App() {
   createEffect(() => {
     const a = sel();
     const base = a
-      ? `${a.status === "running" ? "▶ " : a.status === "error" ? "error " : ""}${a.id} · teapot`
+      ? `${a.status === "running" ? "▶ " : a.status === "error" ? "! " : ""}${a.id} · teapot`
       : "teapot";
     // unread notification count in the tab title — "(2) linux · teapot"
     document.title = unreadCount() > 0 ? `(${unreadCount()}) ${base}` : base;
@@ -1470,8 +1470,8 @@ export default function App() {
       if (editing()) { setEditing(null); return; }
       const s = sel();
       if (s?.status === "running") {
-        // Claude-Code-style: Esc interrupts the running エージェント
-        api(`/api/エージェントs/${s.id}/stop`, { method: "POST" }).then(refreshAgents);
+        // Claude-Code-style: Esc interrupts the running agent
+        api(`/api/agents/${s.id}/stop`, { method: "POST" }).then(refreshAgents);
         return;
       }
       if (showRight() && window.innerWidth <= 1100) setShowRight(false);
@@ -1504,7 +1504,7 @@ export default function App() {
     localStorage.setItem("teapot.term", next ? "1" : "0");
   };
 
-  type TermTab = { key: string; エージェントId: string; title: string };
+  type TermTab = { key: string; agentId: string; title: string };
   type TermSession = {
     el: HTMLDivElement;
     term: any;
@@ -1526,7 +1526,7 @@ export default function App() {
   const paneHosts: (HTMLDivElement | null)[] = [null, null];
 
   /** the tab currently shown in the focused pane */
-  const アクティブTab = () =>
+  const activeTab = () =>
     termTabs()[focusedPane() === 0 ? paneL() : paneR()] ?? null;
 
   function focusTab(i: number) {
@@ -1552,19 +1552,19 @@ export default function App() {
 
   const addFromSelected = () => addTab();
 
-  function addTab(エージェントId?: string) {
-    const who = エージェントId ?? selected();
+  function addTab(agentId?: string) {
+    const who = agentId ?? selected();
     if (!who) return;
-    const perAgent = termTabs().filter((t) => t.エージェントId === who).length;
+    const perAgent = termTabs().filter((t) => t.agentId === who).length;
     if (perAgent >= 10) {
-      flashHint(`max 10 shells per エージェント (${who}) — that's already a lot`);
+      flashHint(`エージェントあたり最大10シェル (${who}) — 十分多いはず`);
       return;
     }
     const n = termTabs().length + 1;
     const tab: TermTab =
       perAgent === 0
-        ? { key: `${who}`, エージェントId: who, title: who }
-        : { key: `${who}#${perAgent + 1}`, エージェントId: who, title: `${who}·${perAgent + 1}` };
+        ? { key: `${who}`, agentId: who, title: who }
+        : { key: `${who}#${perAgent + 1}`, agentId: who, title: `${who}·${perAgent + 1}` };
     setTermTabs((list) => [...list, tab]);
     // land in the focused pane (swap if the other pane shows it already)
     if (focusedPane() === 0) setPaneL(termTabs().length); else setPaneR(termTabs().length);
@@ -1614,7 +1614,7 @@ export default function App() {
       t.loadAddon(f);
       t.open(el);
       const proto = location.protocol === "https:" ? "wss://" : "ws://";
-      const w = new WebSocket(`${proto}${location.host}/api/エージェントs/${tab.エージェントId}/term${wsTokenQuery()}`);
+      const w = new WebSocket(`${proto}${location.host}/api/agents/${tab.agentId}/term${wsTokenQuery()}`);
       w.onmessage = (m) => {
         const msg = JSON.parse(m.data);
         if (msg.kind === "data") t.write(msg.data);
@@ -1695,20 +1695,20 @@ export default function App() {
     });
   });
 
-  // opening the drawer ensures a shell for the selected エージェント
+  // opening the drawer ensures a shell for the selected agent
   createEffect(() => {
     if (!termOpen()) return;
     const id = selected();
     if (!id) return;
-    if (!termTabs().some((t) => t.エージェントId === id) && termTabs().length === 0) addTab(id);
-    else if (!termTabs().some((t) => t.エージェントId === id)) {
-      // the selected エージェント has no tab YET (other エージェントs own all tabs).
+    if (!termTabs().some((t) => t.agentId === id) && termTabs().length === 0) addTab(id);
+    else if (!termTabs().some((t) => t.agentId === id)) {
+      // the selected agent has no tab YET (other agents own all tabs).
       // The old code tried focusTab(findIndex→-1) and silently did nothing,
-      // leaving the pane stuck on "no shell here" or another エージェント's shell.
+      // leaving the pane stuck on "no shell here" or another agent's shell.
       addTab(id);
     } else {
-      // its tab exists — focus it in the アクティブ pane
-      const i = termTabs().findIndex((t) => t.エージェントId === id);
+      // its tab exists — focus it in the active pane
+      const i = termTabs().findIndex((t) => t.agentId === id);
       if (i >= 0) focusTab(i);
     }
   });
@@ -1767,16 +1767,16 @@ export default function App() {
   onMount(() => {
     loadCfg();
     refreshAgents().then(async () => {
-      // deep link: /session/<internalId> routes to its owning エージェント —
-      // fall back to a raw エージェント id (old bookmarks) → last session → first
+      // deep link: /session/<internalId> routes to its owning agent —
+      // fall back to a raw agent id (old bookmarks) → last session → first
       await refreshSessionIndex();
       const want = pathId();
       const owner = want ? masterSessionIndex().get(want) : undefined;
       const initial =
-        (owner ? エージェントs().find((a) => a.id === owner) : undefined) ??
-        エージェントs().find((a) => a.id === want && !masterSessionIndex().has(want)) ??
-        エージェントs().find((a) => a.id === localStorage.getItem("teapot.session")) ??
-        エージェントs()[0];
+        (owner ? agents().find((a) => a.id === owner) : undefined) ??
+        agents().find((a) => a.id === want && !masterSessionIndex().has(want)) ??
+        agents().find((a) => a.id === localStorage.getItem("teapot.session")) ??
+        agents()[0];
       if (initial) select(initial.id, false);
     });
     refreshMetrics();
@@ -1792,14 +1792,14 @@ export default function App() {
 
   const SLASH_COMMANDS = [
     { cmd: "/start", desc: "start working toward the goal" },
-    { cmd: "/stop", desc: "interrupt the running エージェント" },
+    { cmd: "/stop", desc: "interrupt the running agent" },
     { cmd: "/fork", desc: "branch the conversation here" },
     { cmd: "/goal", desc: "/goal <テキスト> — 目標を設定しエージェントに通知" },
     { cmd: "/compact", desc: "force a context compaction now" },
     { cmd: "/skill", desc: "/skill <name> — force-load a skill and follow it" },
   ];
 
-  // @mentions: personas spawn sub-エージェントs, エージェント ids target existing ones
+  // @mentions: personas spawn sub-agents, agent ids target existing ones
   const [personas, setPersonas] = createSignal<{ key: string; label: string }[]>([]);
   const loadPersonas = () => api("/api/personas").then((d) => setPersonas(d.personas)).catch(() => {});
   const [mentionFork, setMentionFork] = createSignal(false);
@@ -1811,10 +1811,10 @@ export default function App() {
     const q = mentionQuery();
     if (q === null) return [];
     const list = [
-      ...personas().map((p) => ({ key: p.key, label: `${p.label} — spawns a sub-エージェント`, kind: "persona" as const })),
-      ...エージェントs()
+      ...personas().map((p) => ({ key: p.key, label: `${p.label} — spawns a sub-agent`, kind: "persona" as const })),
+      ...agents()
         .filter((a) => a.id !== selected())
-        .map((a) => ({ key: a.id, label: `${a.status} — send directly`, kind: "エージェント" as const })),
+        .map((a) => ({ key: a.id, label: `${a.status} — send directly`, kind: "agent" as const })),
     ];
     return list.filter((x) => x.key.toLowerCase().startsWith(q));
   };
@@ -1827,10 +1827,10 @@ export default function App() {
   };
 
   // unified suggestions: slash commands, then /skill argument completion
-  // (skill names come from the selected エージェント's roots via /api/エージェントs/:id/skills)
+  // (skill names come from the selected agent's roots via /api/agents/:id/skills)
   type Suggest = { insert: string; title: string };
   const NO_ARG_COMMANDS = new Set(["start", "stop", "fork", "compact"]);
-  const [エージェントSkills, setAgentSkills] = createSignal<{ name: string; description: string }[]>([]);
+  const [agentSkills, setAgentSkills] = createSignal<{ name: string; description: string }[]>([]);
   const [cmdIdx, setCmdIdx] = createSignal(-1);
   const suggestions = (): Suggest[] => {
     const d = draft();
@@ -1852,7 +1852,7 @@ export default function App() {
       return rows.map((c) => ({ insert: c.cmd + " ", title: c.desc }));
     }
     if (cmdName === "skill") {
-      let rows = エージェントSkills().filter((s) => s.name.toLowerCase().startsWith(argPart.toLowerCase()));
+      let rows = agentSkills().filter((s) => s.name.toLowerCase().startsWith(argPart.toLowerCase()));
       // a single exact match means the name is complete — stop suggesting so
       // the following Enter dispatches /skill instead of re-selecting
       if (rows.length === 1 && rows[0]!.name.toLowerCase() === argPart.toLowerCase()) return [];
@@ -1913,7 +1913,7 @@ export default function App() {
     if (!id) return;
     const images = pendingImages();
     try {
-      const r = await api(`/api/エージェントs/${id}/prompt`, {
+      const r = await api(`/api/agents/${id}/prompt`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text, start: true, ...(images.length ? { images } : {}) }),
@@ -1947,26 +1947,26 @@ export default function App() {
     const text = draft().trim();
     if (!id || !text) return;
 
-    // @mentions: persona → spawn sub-エージェント; エージェント id → direct message
+    // @mentions: persona → spawn sub-agent; agent id → direct message
     if (text.startsWith("@")) {
       const sp = text.indexOf(" ");
       const name = (sp === -1 ? text.slice(1) : text.slice(1, sp)).toLowerCase();
       const arg = sp === -1 ? "" : text.slice(sp + 1).trim();
       const isPersona = personas().some((p) => p.key.toLowerCase() === name);
-      const knownAgent = エージェントs().some((a) => a.id.toLowerCase() === name);
+      const knownAgent = agents().some((a) => a.id.toLowerCase() === name);
       try {
         if (isPersona) {
           if (!arg) { flashHint(`usage: @${name} <task>`); return; }
-          const r = await api(`/api/エージェントs/${selected()}/spawn`, {
+          const r = await api(`/api/agents/${selected()}/spawn`, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ persona: name, task: arg, context: mentionFork() ? "fork" : "none" }),
           });
-          flashHint(`jigsaw spawned ${(r as any).id}${mentionFork() ? " (forked context)" : ""}`);
+          flashHint(`spawned ${(r as any).id}${mentionFork() ? " (forked context)" : ""}`);
           refreshAgents(); saveDraft("");
         } else if (knownAgent) {
           if (!arg) { flashHint(`usage: @${name} <message>`); return; }
-          await api(`/api/エージェントs/${encodeURIComponent(name)}/prompt`, {
+          await api(`/api/agents/${encodeURIComponent(name)}/prompt`, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ text: arg, start: true }),
@@ -1974,7 +1974,7 @@ export default function App() {
           flashHint(`→ delivered to @${name}`);
           saveDraft("");
         } else {
-          flashHint(`unknown @${name} — personas: ${personas().map((p) => p.key).join(", ") || "(none)"}`);
+          flashHint(`unknown @${name} — personas: ${personas().map((p) => p.key).join(", ") || "(なし)"}`);
           return;
         }
       } catch (ex) {
@@ -2014,7 +2014,7 @@ export default function App() {
     const id = selected();
     if (!id) return;
     const post = (p: string, body?: unknown) =>
-      api(`/api/エージェントs/${id}${p}`, {
+      api(`/api/agents/${id}${p}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
@@ -2025,7 +2025,7 @@ export default function App() {
       else if (name === "fork") { await post("/fork", {}); await select(id); }
       else if (name === "compact") {
         const r: any = await post("/compact");
-        flashHint(r?.ran ? "コンテキストを圧縮しました" : "nothing to compact yet");
+        flashHint(r?.ran ? "コンテキストを圧縮しました" : "圧縮するものがまだありません");
       }
       else if (name === "goal") {
         if (!arg) { flashHint("使い方: /goal <テキスト>"); return; }
@@ -2048,13 +2048,13 @@ export default function App() {
   };
 
   // The right panel's scroll position used to reset whenever a control button
-  // (▶ start / ■ stop / goal save…) refreshed the エージェントs: content inside was
+  // (▶ start / ■ stop / goal save…) refreshed the agents: content inside was
   // rebuilt and the browser clamped scrollTop. Keep the offset and restore it
-  // on every repaint triggered by an エージェントs update.
+  // on every repaint triggered by an agents update.
   let rightbarEl: HTMLDivElement | undefined;
   let rightbarTop = 0;
   createEffect(() => {
-    エージェントs(); // re-arm on every エージェントs update (incl. start/stop refreshes)
+    agents(); // re-arm on every agents update (incl. start/stop refreshes)
     // double rAF: the first frame applies Solid's DOM writes, the second
     // measures/restores AFTER layout settles — restoring too early let the
     // browser clamp scrollTop to the OLD height and the panel visibly jumped
@@ -2067,10 +2067,10 @@ export default function App() {
     });
   });
   const act = (path: string) =>
-    () => selected() && api(`/api/エージェントs/${selected()}${path}`, { method: "POST" }).then(refreshAgents);
+    () => selected() && api(`/api/agents/${selected()}${path}`, { method: "POST" }).then(refreshAgents);
 
   // Goal input as SIGNALS (not uncontrolled DOM): the right panel re-renders
-  // on every エージェント snapshot, and status flips / <Show> boundary crossings
+  // on every agent snapshot, and status flips / <Show> boundary crossings
   // rebuilt the form subtree — silently wiping half-typed goals mid-input.
   const [goalDraft, setGoalDraft] = createSignal("");
   const [goalVerifyDraft, setGoalVerifyDraft] = createSignal("");
@@ -2093,7 +2093,7 @@ export default function App() {
     e.preventDefault();
     if (!selected() || !goalDraft().trim()) return;
     try {
-      await api(`/api/エージェントs/${selected()}/goal`, {
+      await api(`/api/agents/${selected()}/goal`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -2122,7 +2122,7 @@ export default function App() {
     <Show when={authLocked()}>
       <div class="overlay">
         <div class="modal" style="max-width:360px">
-          <div class="modal-head"><b>🔒 sign in</b><span /></div>
+          <div class="modal-head"><b><span class="mi">lock</span> サインイン</b><span /></div>
           <form
             onsubmit={(e) => {
               e.preventDefault();
@@ -2132,9 +2132,9 @@ export default function App() {
             }}
             style="display:flex;flex-direction:column;gap:10px"
           >
-            <input id="pw-input" type="password" placeholder="password" autofocus />
-            <button type="submit" style="background:var(--acc);border:none;border-radius:6px;color:#fff;padding:7px 12px;cursor:pointer">unlock</button>
-            <span class="muted" style="font-size:11px">the token is stored locally and sent as Bearer to this server only</span>
+            <input id="pw-input" type="password" placeholder="パスワード" autofocus />
+            <button type="submit" style="background:var(--acc);border:none;border-radius:6px;color:#fff;padding:7px 12px;cursor:pointer">ロック解除</button>
+            <span class="muted" style="font-size:11px">トークンはローカルに保存され、このサーバーへのBearer送信にのみ使われます</span>
           </form>
         </div>
       </div>
@@ -2143,43 +2143,43 @@ export default function App() {
     <div class={"layout" + (showRight() ? "" : " right-hidden")}>
       {/* ---------- sidebar ---------- */}
       <nav class="sidebar">
-        <div class="エージェント-list">
+        <div class="agent-list">
           <For each={treeRows()}>
             {({ a, depth }) => (
               <div
-                class={"エージェント-item" + (a.id === selected() ? " sel" : "") + (depth > 0 ? " sub-row" : "")}
+                class={"agent-item" + (a.id === selected() ? " sel" : "") + (depth > 0 ? " sub-row" : "")}
                 style={depth > 0 ? `padding-left:${10 + depth * 14}px` : ""}
                 onclick={() => select(a.id)}
-                title={a.parent ? `sub-エージェント of @${a.parent}` : undefined}
+                title={a.parent ? `@${a.parent} のサブエージェント` : undefined}
               >
-                <Show when={エージェントs().some((x) => x.parent === a.id)} fallback={<span class="caret-spacer" />}>
+                <Show when={agents().some((x) => x.parent === a.id)} fallback={<span class="caret-spacer" />}>
                   <span
                     class="caret"
-                    title={collapsedSubs().has(a.id) ? "expand sub-エージェントs" : "collapse sub-エージェントs"}
+                    title={collapsedSubs().has(a.id) ? "expand sub-agents" : "collapse sub-agents"}
                     onclick={(e: MouseEvent) => { e.stopPropagation(); toggleCollapse(a.id); }}
-                  >{collapsedSubs().has(a.id) ? "▸" : "▾"}</span>
+                  ><span class="mi">{collapsedSubs().has(a.id) ? "chevron_right" : "expand_more"}</span></span>
                 </Show>
                 <span class={`dot ${a.status}`} />
                 <span
-                  class={a.ワークスペースMissing ? " ghost" : ""}
-                  title={a.ワークスペースMissing ? `ワークスペース not found on disk (${a.ワークスペース}) — it will be created when this session runs` : undefined}
+                  class={a.workspaceMissing ? " ghost" : ""}
+                  title={a.workspaceMissing ? `ワークスペースがディスクにありません (${a.workspace}) — このセッションの実行時に作成されます` : undefined}
                 >{a.id}</span>
-                {a.ワークスペースMissing ? <span class="ghosttag" title="ワークスペースなし">cloud_off</span> : null}
+                {a.workspaceMissing ? <span class="ghosttag" title="ワークスペースなし">cloud_off</span> : null}
                 <Show when={subtreeUnread(a.id) > 0}>
-                  <span class="notifbadge" title={`${subtreeUnread(a.id)} unread notification${subtreeUnread(a.id) > 1 ? "s" : ""} (including sub-エージェントs)`}>
-                    🔔{subtreeUnread(a.id)}
+                  <span class="notifbadge" title={`${subtreeUnread(a.id)}件の未読通知（サブエージェント含む）`}>
+                    <span class="mi">notifications</span>{subtreeUnread(a.id)}
                   </span>
                 </Show>
                 {/* collapsed tree: surface how many subs are still working so a
                     busy parent doesn't look idle with its subtree hidden */}
                 <Show when={collapsedSubs().has(a.id)}>
                   {(() => {
-                    const kids = エージェントs().filter((x) => x.parent === a.id);
+                    const kids = agents().filter((x) => x.parent === a.id);
                     const running = kids.filter((k) => k.status === "running" || k.status === "waiting").length;
                     return kids.length > 0 ? (
                       <span
                         class={"subcount" + (running > 0 ? " live" : "")}
-                        title={`${kids.length} sub-エージェント${kids.length > 1 ? "s" : ""} (${running} アクティブ)`}
+                        title={`${kids.length} sub-agent${kids.length > 1 ? "s" : ""} (${running} active)`}
                       >
                         jigsaw {kids.length}{running > 0 ? ` · ▶${running}` : ""}
                       </span>
@@ -2187,10 +2187,10 @@ export default function App() {
                   })()}
                 </Show>
                 <Show when={a.parent}><span class="subtag">jigsaw</span></Show>
-                <Show when={エージェントTasks(a.id).length > 0}>
-                  <span class="mini-cron" title={エージェントTasks(a.id).map((t) => `${t.id}: ${t.schedule}`).join("\n")}>スケジュール</span>
+                <Show when={agentTasks(a.id).length > 0}>
+                  <span class="mini-cron" title={agentTasks(a.id).map((t) => `${t.id}: ${t.schedule}`).join("\n")}>schedule</span>
                 </Show>
-                <Show when={a.goal.status === "done"}><span title="目標完了">check</span></Show>
+                <Show when={a.goal.status === "done"}><span title="目標完了">✓</span></Show>
               </div>
             )}
           </For>
@@ -2198,7 +2198,7 @@ export default function App() {
         <div class="sidebar-footer">
           <Show when={showThemes()}>
             <div class="themepop">
-              <label class="trow" title="switch automatically when the OS switches appearance — pick which theme to use for each">
+              <label class="trow" title="OSの外観切替に自動連動 — pick which theme to use for each">
                 <input
                   type="checkbox"
                   checked={themeAuto()}
@@ -2208,7 +2208,7 @@ export default function App() {
                     localStorage.setItem("teapot.theme.auto", v ? "1" : "0");
                   }}
                 />
-                follow system
+                システムに連動
               </label>
               <Show
                 when={!themeAuto()}
@@ -2276,20 +2276,20 @@ export default function App() {
                 if (!showNotifs()) setNotifs((l) => l.map((n) => ({ ...n, read: true })));
               }}
             >
-              🔔<Show when={unreadCount() > 0}><i class="notifdot">{unreadCount()}</i></Show>
+              <span class="mi">notifications</span><Show when={unreadCount() > 0}><i class="notifdot">{unreadCount()}</i></Show>
             </button>
             <IconBtn
               icon="visibility_off"
-              アクティブ={hideGhosts()}
-              title={hideGhosts() ? "show ghost sessions again (ワークスペース missing on disk)" : "hide ghost sessions (their ワークスペース directory no longer exists)"}
+              active={hideGhosts()}
+              title={hideGhosts() ? "ゴーストセッションを再表示（ワークスペースがディスクにありません）" : "ゴーストセッションを隠す（ワークスペースのディレクトリが存在しません）"}
               onClick={(e) => {
                 e.stopPropagation();
                 const next = !hideGhosts();
                 setHideGhosts(next);
                 localStorage.setItem("teapot.hideGhosts", next ? "1" : "0");
                 // keep the selection valid when the current session gets hidden
-                if (next && selected() && sel()?.ワークスペースMissing) {
-                  const firstVisible = エージェントs().find((a) => !a.ワークスペースMissing);
+                if (next && selected() && sel()?.workspaceMissing) {
+                  const firstVisible = agents().find((a) => !a.workspaceMissing);
                   if (firstVisible) select(firstVisible.id);
                 }
               }}
@@ -2301,13 +2301,13 @@ export default function App() {
           <div class="brand-row">
             <div class="brand">
               chat_bubble teapot <span class="version">v{__APP_VERSION__}</span>
-              <span class={"conn" + (connected() ? " ok" : "")} title={connected() ? "live (websocket)" : "reconnecting…"} />
+              <span class={"conn" + (connected() ? " ok" : "")} title={connected() ? "接続中 (websocket)" : "再接続中…"} />
             </div>
           </div>
           <div class="metrics">
             <Show when={metrics()}>
-              マスターRSS {metrics().rssMb}MB · ヒープ {metrics().ヒープUsedMb}MB<br />
-              負荷1 {metrics().loadavg1} · up {Math.floor(metrics().uptimeSec / 60)}分
+              メモリ {metrics().rssMb}MB · ヒープ {metrics().heapUsedMb}MB<br />
+              平均負荷 {metrics().loadavg1} · 稼働 {Math.floor(metrics().uptimeSec / 60)}分
             </Show>
           </div>
         </div>
@@ -2315,30 +2315,30 @@ export default function App() {
 
       {/* ---------- channel ---------- */}
       <section class="channel">
-        <Show when={sel()} fallback={<div style="display:grid;place-items:center;height:100%" class="muted">select an エージェント</div>}>
+        <Show when={sel()} fallback={<div style="display:grid;place-items:center;height:100%" class="muted">エージェントを選択</div>}>
           <header class="chan-head">
             <span class="hash">#</span>
             <span class="title">{sel()!.id}</span>
             <span class={`badge ${sel()!.status}`}>{sel()!.status}</span>
             <Show when={(sel()!.pendingPrompts ?? 0) > 0}>
               <span
-                class="badge キューd"
-                title={`${sel()!.pendingPrompts ?? 0} message${(sel()!.pendingPrompts ?? 0) > 1 ? "s" : ""} from you waiting in the キュー. They will be handed to the model at its next turn boundary — the timeline shows them as "pending (キューd)…" until then, and each can be withdrawn with close cancel while it's still キューd.`}
+                class="badge queued"
+                title={`${sel()!.pendingPrompts ?? 0}件のメッセージがキュー待ちです。次のターンの区切りでモデルに渡されます — それまではタイムラインに「送信待ち…」と表示され、キューにある間はキャンセルで取り下げられます。`}
               >
-                ⏳ {sel()!.pendingPrompts} of yours キューd
+                <span class="mi">hourglass</span> {sel()!.pendingPrompts}件がキュー待ち
               </span>
             </Show>
-            <Show when={エージェントTasks(sel()!.id).length > 0}>
-              <span class="badge cron" title={`scheduled tasks:\n${エージェントTasks(sel()!.id).map((t) => `${t.schedule} · ${t.id}${t.forked ? " (forked)" : ""}`).join("\n")}`}>
-                schedule {エージェントTasks(sel()!.id).length}
+            <Show when={agentTasks(sel()!.id).length > 0}>
+              <span class="badge cron" title={`定期タスク:\n${agentTasks(sel()!.id).map((t) => `${t.schedule} · ${t.id}${t.forked ? " (フォーク)" : ""}`).join("\n")}`}>
+                <span class="mi">schedule</span> {agentTasks(sel()!.id).length}
               </span>
             </Show>
             <span class="sub">
-              {sel()!.model} · {sel()!.session}/{sel()!.branch} · turns {sel()!.stats.turns} · tools {sel()!.stats.toolCalls}
+              {sel()!.model} · {sel()!.session}/{sel()!.branch} · {sel()!.stats.turns}ターン · ツール{sel()!.stats.toolCalls}回
             </span>
             <span style="margin-left:auto;display:flex;gap:4px">
               <Show when={sel()!.statusReason}>
-                <span class="sub" title={sel()!.statusReason}>ℹ</span>
+                <span class="sub" title={sel()!.statusReason}><span class="mi">info</span></span>
               </Show>
               <IconBtn icon="keyboard" title="ターミナル (t)" onClick={toggleTerm} />
               <IconBtn icon="view_sidebar" title="詳細パネル切替 (d)" onClick={toggleRight} />
@@ -2379,8 +2379,8 @@ export default function App() {
           }}>
             <Show when={compacting()}>
               {(c) => (
-                <div class="divider-msg compacting" title="the harness is compressing old turns into notes so work can continue within the context window">
-                  summarize {c().phase === "harvesting" ? "saving durable lessons…" : `summarizing ${c().summarized ? fmtK(c().summarized!) + " " : ""}older messages…`}
+                <div class="divider-msg compacting" title="ハーネスが古いターンをメモに圧縮中 — コンテキスト窓内で作業継続のため">
+                  <span class="mi">summarize</span> {c().phase === "harvesting" ? "教訓を保存中…" : `古いメッセージを要約中${c().summarized ? " (" + fmtK(c().summarized!) + ") " : ""}…`}
                 </div>
               )}
             </Show>
@@ -2388,10 +2388,10 @@ export default function App() {
               <div class="divider-msg">── beginning of log ──</div>
             </Show>
             <Show when={loadingOlder()}>
-              <div class="divider-msg">loading older events…</div>
+              <div class="divider-msg">古いイベントを読み込み中…</div>
             </Show>
             <Show when={chatEvents().length > 0} fallback={
-              <div style="display:grid;place-items:center;height:100%" class="muted">no events yet — say something or press ▶ start</div>
+              <div style="display:grid;place-items:center;height:100%" class="muted">まだイベントがありません — メッセージを送るか ▶ 開始を押してください</div>
             }>
               <For each={chatEvents()}>
                 {(e, i) => (
@@ -2401,13 +2401,13 @@ export default function App() {
                     res={pairInfo().resFor.get(e.id)}
                     onOption={(t) => void sendText(t)}
                     answeredIds={answeredQuestionIds()}
-                    エージェントActive={sel()?.status === "running" || sel()?.status === "waiting"}
+                    agentActive={sel()?.status === "running" || sel()?.status === "waiting"}
                     onResize={() => { if (atBottom()) requestAnimationFrame(() => scrollBottom(true)); }}
                     onCancel={
                       e.data?.pending && e.data?.promptId && e.data?.sent !== true
                         ? () => {
                             const pid = String(e.data.promptId);
-                            api(`/api/エージェントs/${selected()}/prompt/cancel`, {
+                            api(`/api/agents/${selected()}/prompt/cancel`, {
                               method: "POST",
                               headers: { "content-type": "application/json" },
                               body: JSON.stringify({ promptId: pid }),
@@ -2443,12 +2443,12 @@ export default function App() {
                   <div class="msg-body">
                     <div class="msg-head">
                       <span class="author" style="color:var(--acc)">エージェント</span>
-                      <span class="ts">streaming…</span>
+                      <span class="ts">受信中…</span>
                     </div>
                     <Show when={liveReasoning()}>
                       <details class="reasoning" open>
                         <summary>
-                          💭 thinking <ThinkingTimer startedAt={liveStartedAt()} />
+                          <span class="mi">psychology</span> 考え中 <ThinkingTimer startedAt={liveStartedAt()} />
                         </summary>
                         {/* ref + scroll-follow: the thinking block grows from the
                             bottom; keep its tail visible while it streams. The
@@ -2477,10 +2477,10 @@ export default function App() {
                     </Show>
                     <Show
                       when={liveText()}
-                      fallback={<div class="content muted">thinking…</div>}
+                      fallback={<div class="content muted">考え中…</div>}
                     >
                       <Show when={liveIsCompact()} fallback={<div class="content" innerHTML={renderMarkdown(liveText() + "▍")} />}>
-                        <div class="muted" style="font-size:11.5px;margin-bottom:4px">🗜 summarizing older context…</div>
+                        <div class="muted" style="font-size:11.5px;margin-bottom:4px"><span class="mi">summarize</span> 古いコンテキストを要約中…</div>
                         <div class="content" innerHTML={renderMarkdown(liveBody() + "▍")} />
                       </Show>
                     </Show>
@@ -2492,42 +2492,42 @@ export default function App() {
 
           <Show when={termOpen()}>
             <div class="termdrawer" style={{ height: `${termHeight()}px`, "--termh": `${termHeight()}px` } as any}>
-              <div class="termgrip" onpointerdown={startGrip} ondblclick={() => { setTermHeight(Math.max(220, Math.round(window.innerHeight * 0.35))); localStorage.setItem("teapot.termH", String(termHeight())); }} title="drag to resize · double-click to reset" />
+              <div class="termgrip" onpointerdown={startGrip} ondblclick={() => { setTermHeight(Math.max(220, Math.round(window.innerHeight * 0.35))); localStorage.setItem("teapot.termH", String(termHeight())); }} title="ドラッグでリサイズ · ダブルクリックでリセット" />
               <div class="termbar">
                 <div class="termtabs">
                   <For each={termTabs()}>
                     {(t, i) => (
                       <span
-                        class={"termtab" + (focusedPane() === 0 && paneL() === i() ? " アクティブ" : "") + (splitView() && focusedPane() === 1 && paneR() === i() ? " アクティブ" : "")}
+                        class={"termtab" + (focusedPane() === 0 && paneL() === i() ? " active" : "") + (splitView() && focusedPane() === 1 && paneR() === i() ? " active" : "")}
                         onclick={() => focusTab(i())}
-                        title={`${t.title} — click to show in focused pane`}
+                        title={`${t.title} — クリックでフォーカス中のペインに表示`}
                       >
-                        keyboard {t.title}
+                        <span class="mi">keyboard</span> {t.title}
                         <button class="tabx" onclick={(e) => { e.stopPropagation(); closeTab(i()); }} title="このシェルを閉じる">✕</button>
                       </span>
                     )}
                   </For>
-                  <IconBtn icon="plus" title="このワークスペースで新しいシェル" onClick={addFromSelected} />
+                  <IconBtn icon="add" title="このワークスペースで新しいシェル" onClick={addFromSelected} />
                 </div>
                 <div style="display:flex;gap:4px;align-items:center">
                   <span class="muted mono" style="flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-                    {アクティブTab() ? エージェントs().find((a) => a.id === アクティブTab()!.エージェントId)?.ワークスペース.split("/").filter(Boolean).pop() : sel()?.ワークスペース}
+                    {activeTab() ? agents().find((a) => a.id === activeTab()!.agentId)?.workspace.split("/").filter(Boolean).pop() : sel()?.workspace}
                   </span>
-                  <IconBtn icon="swap" title={splitView() ? "single pane" : "split panes (50/50)"} onClick={toggleSplit} />
-                  <IconBtn icon="arrow_down" title="ターミナルを非表示 (shells keep running; reopen with t) — close individual shells with their ✕ tab buttons" onClick={toggleTerm} />
+                  <IconBtn icon="swap" title={splitView() ? "単一ペイン" : "ペイン分割 (50/50)"} onClick={toggleSplit} />
+                  <IconBtn icon="arrow_down" title="ターミナルを非表示（シェルは動作継続。tで再表示）— 各シェルは✕タブボタンで閉じます" onClick={toggleTerm} />
                 </div>
               </div>
               <div class="termbody" classList={{ split: splitView() }}>
                 <div class="termpane" classList={{ focused: focusedPane() === 0 }} onpointerdown={() => setFocusedPane(0)} ref={setPaneHost(0)}>
                   <Show when={paneL() < 0 || paneL() >= termTabs().length}>
-                    <div class="termempty muted">no shell here — ＋ opens one, tabs fill the focused pane</div>
+                    <div class="termempty muted">シェルがありません — 新規ボタンで作成、タブで切り替え</div>
                   </Show>
                 </div>
                 <Show when={splitView()}>
                   <div class="termsplit" />
                   <div class="termpane" classList={{ focused: focusedPane() === 1 }} onpointerdown={() => setFocusedPane(1)} ref={setPaneHost(1)}>
                     <Show when={paneR() < 0 || paneR() >= termTabs().length}>
-                      <div class="termempty muted">no shell here — click a tab or ＋ to add</div>
+                      <div class="termempty muted">シェルがありません — タブ選択か新規ボタンで追加</div>
                     </Show>
                   </div>
                 </Show>
@@ -2546,7 +2546,7 @@ export default function App() {
                 <For each={suggestions()}>
                   {(s, i) => (
                     <div
-                      class={"cmdrow" + (i() === cmdIdx() ? " アクティブ" : "")}
+                      class={"cmdrow" + (i() === cmdIdx() ? " active" : "")}
                       title={s.title}
                       onclick={() => { saveDraft(s.insert); setCmdIdx(-1); }}
                     >
@@ -2580,21 +2580,21 @@ export default function App() {
                         <button
                           type="button"
                           class="imgx"
-                          title="remove"
+                          title="取り除く"
                           onclick={() => setPendingImages((l) => l.filter((_, j) => j !== i()))}
-                        >✕</button>
+                        ><span class="mi">close</span></button>
                       </span>
                     )}
                   </For>
                   <span class="muted" style="font-size:11px;align-self:center">
-                    {pendingImages().length} image{pendingImages().length > 1 ? "s" : ""} attached
+                    画像{pendingImages().length}枚を添付
                   </span>
                 </div>
               </Show>
               <textarea
                 ref={composerEl}
                 rows={1}
-                placeholder={`message #${sel()!.id} — / for commands · paste or attachment to attach images`}
+                placeholder={`#${sel()!.id} へのメッセージ — / でコマンド · 画像の貼り付け・添付可`}
                 value={draft()}
                 onpaste={(e) => {
                   // screenshots land on the clipboard as files — stage them
@@ -2643,10 +2643,10 @@ export default function App() {
               <Show when={draft().startsWith("@") && draft().includes(" ")}>
                 <label
                   class="forkchip"
-                  title="inherit the conversation prefix byte-exactly — the sub-エージェント's provider prefix cache starts warm"
+                  title="会話の前文をバイト完全一致で継承 — サブエージェント's プロバイダープレフィックスキャッシュが温かいまま始まる"
                 >
                   <input type="checkbox" checked={mentionFork()} onchange={(e) => setMentionFork(e.currentTarget.checked)} />
-                  fork ctx
+                  フォーク継承
                 </label>
               </Show>
               <button
@@ -2660,14 +2660,14 @@ export default function App() {
                   // pinned / restored correctly across the relayout
                   requestAnimationFrame(() => autosizeComposer());
                 }}
-              >{composerMaximized() ? "fullscreen_exit" : "fullscreen"}</button>
+              ><span class="mi">{composerMaximized() ? "fullscreen_exit" : "fullscreen"}</span></button>
               <IconBtn
                 icon="attach_file"
-                title="画像を追加 (or paste them straight into the box)"
+                title="画像を追加（直接貼り付けも可）"
                 onClick={() => document.getElementById("composer-file")?.click()}
               />
               <Show when={pendingImages().length}>
-                <span class="muted" style="font-size:11.5px;white-space:nowrap">image {pendingImages().length}</span>
+                <span class="muted" style="font-size:11.5px;white-space:nowrap"><span class="mi">image</span> {pendingImages().length}</span>
               </Show>
               <button type="submit">送信</button>
               {/* hidden input lives here so the attach button can trigger it */}
@@ -2685,7 +2685,7 @@ export default function App() {
             </form>
             <div class="hint">
               {flash() ||
-                "enter send · shift+enter newline · ↑↓ sessions · / commands & focus · t terminal · d panel · esc interrupt · messages sent while the エージェント works キュー up and land at the next turn boundary"}
+                "Enterで送信 · Shift+Enterで改行 · ↑↓で履歴 · /でコマンド · tでターミナル · dでパネル · escで中断 · エージェント作業中の送信はキューに入り次のターンで届きます"}
             </div>
           </div>
         </Show>
@@ -2698,28 +2698,28 @@ export default function App() {
         onscroll={(e) => { rightbarTop = (e.currentTarget as HTMLDivElement).scrollTop; }}
       >
         <Show when={sel()}>
-          <h3 title="identity + storage locations for this エージェント">🎛 session</h3>
+          <h3 title="このエージェントの識別情報と保存場所"><span class="mi">fingerprint</span> セッション</h3>
           <div class="card sesscard">
             <div class="sessrow"><span class="k">エージェント</span><b>{sel()!.id}</b><span class={`badge ${sel()!.status}`}>{sel()!.status}</span></div>
-            <div class="sessrow"><span class="k">ワークスペース</span><span class="mono ellip" title={sel()!.ワークスペース}>{sel()!.ワークスペース}</span></div>
+            <div class="sessrow"><span class="k">ワークスペース</span><span class="mono ellip" title={sel()!.workspace}>{sel()!.workspace}</span></div>
             <div class="sessrow"><span class="k">session</span><span class="mono">{sel()!.session}/{sel()!.branch}</span></div>
           </div>
 
-          {/* keyed by エージェント id: Solid re-runs the JSX expression on every
+          {/* keyed by agent id: Solid re-runs the JSX expression on every
               snapshot update, but <Show keyed> + primitive props keep the
-              FilesPanel subtree from re-rendering unless the エージェント changes */}
+              FilesPanel subtree from re-rendering unless the agent changes */}
           <Show when={sel()!.id} keyed fallback={null}>
             {(aid) => (
-              <FilesPanel エージェントId={aid} ワークスペース={sel()!.ワークスペース} />
+              <FilesPanel agentId={aid} workspace={sel()!.workspace} />
             )}
           </Show>
 
-          <h3 title="switch provider/model live — applies from the エージェント's next turn; the list shows context window & pricing from the provider">🧦 model</h3>
+          <h3 title="プロバイダー/モデルを live で切替 — 次のターンから適用。一覧にコンテキスト窓と料金を表示"><span class="mi">smart_toy</span> モデル</h3>
           <div class="modelbox">
             <select
               value={modelProvider()}
               onchange={(e) => { setModelProvider(e.currentTarget.value); loadModels(e.currentTarget.value); }}
-              title="provider (OpenAI-compatible endpoint)"
+              title="プロバイダー (OpenAI互換エンドポイント)"
             >
               <For each={providerList()}>{(p) => <option value={p}>{p}{p === cfg().defaultProvider ? " ★" : ""}</option>}</For>
             </select>
@@ -2736,13 +2736,13 @@ export default function App() {
                 <For each={models()}>{(m) => <option value={m.id} />}</For>
               </datalist>
               <button
-                title="apply to this session — takes effect from the エージェント's next turn"
+                title="このセッションに適用 — エージェントの次のターンから有効"
                 onclick={async (e) => {
                   if (!selected()) return;
                   const btn = e.currentTarget as HTMLButtonElement;
                   btn.disabled = true;
                   try {
-                    await api(`/api/エージェントs/${selected()}/model`, {
+                    await api(`/api/agents/${selected()}/model`, {
                       method: "POST",
                       headers: { "content-type": "application/json" },
                       body: JSON.stringify({
@@ -2772,7 +2772,7 @@ export default function App() {
             </Show>
           </div>
 
-          <h3>⏯ controls</h3>
+          <h3><span class="mi">play_circle</span> 操作</h3>
           <div class="btnrow">
             {/* ONE persistent button: swapping ▶ start / ■ stop via <Show> destroyed
                 and recreated the node on every idle→running transition, which
@@ -2782,104 +2782,104 @@ export default function App() {
               class={sel()!.status === "running" ? "danger" : "runbtn"}
               title={
                 sel()!.status === "running"
-                  ? "interrupt: aborts the current LLM call; the running tool finishes first"
-                  : "run toward the goal (starts the loop)"
+                  ? "中断: 現在のLLM呼び出しを中止します（実行中のツールは先に終了）"
+                  : "目標に向けて実行（ループを開始）"
               }
               onclick={sel()!.status === "running" ? act("/stop") : act("/start")}
-            >{sel()!.status === "running" ? "■ stop" : "▶ start"}</button>
+            >{sel()!.status === "running" ? "■ 停止" : "▶ 開始"}</button>
             <button
-              title="branch off the conversation here — try things without disturbing the main line"
-              onclick={() => api(`/api/エージェントs/${sel()!.id}/fork`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }).then(() => select(sel()!.id))}
-            >⑂ fork</button>
+              title="ここから会話を分岐 — 本線に影響なく試せます"
+              onclick={() => api(`/api/agents/${sel()!.id}/fork`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }).then(() => select(sel()!.id))}
+            ><span class="mi">call_split</span> フォーク</button>
             <button onclick={async () => {
               const id = selected();
-              if (!id || !confirm(`remove エージェント ${id}? (log is kept)`)) return;
-              await api(`/api/エージェントs/${id}`, { method: "DELETE" }).catch(() => {});
-              const rest = エージェントs().filter((a) => a.id !== id);
+              if (!id || !confirm(`エージェント ${id} を削除しますか?（ログは残ります）`)) return;
+              await api(`/api/agents/${id}`, { method: "DELETE" }).catch(() => {});
+              const rest = agents().filter((a) => a.id !== id);
               setAgents(rest);
               if (rest[0]) select(rest[0].id);
               else { setSelected(null); setEvents([]); }
-              }} title="remove エージェント from teapot (session log stays on disk)">🗑 remove</button>
-              <Show when={エージェントs().some((a) => a.parent === selected())}>
+              }} title="teapotからエージェントを削除（セッションログはディスクに残ります）">削除</button>
+              <Show when={agents().some((a) => a.parent === selected())}>
                 <button
                   onclick={async () => {
                     if (!selected()) return;
-                    const r = await api(`/api/エージェントs/${selected()}/stop-children`, { method: "POST" });
-                    flashHint(`stopped: ${((r as any).stopped ?? []).join(", ") || "(none)"}`);
+                    const r = await api(`/api/agents/${selected()}/stop-children`, { method: "POST" });
+                    flashHint(`停止済み: ${((r as any).stopped ?? []).join(", ") || "(なし)"}`);
                     refreshAgents();
                   }}
-                  title="stop every sub-エージェント this エージェント spawned (descendants included)"
-                >⏹ subs</button>
+                  title="このエージェントが生んだサブエージェントをすべて停止（子孫含む）"
+                ><span class="mi">stop_circle</span> サブ停止</button>
               </Show>
           </div>
           <div class="ctrlrow">
             <label
-              title="ラウンド後に自動継続が動作するのは次の条件をすべて満たす場合のみ when all hold: ① this toggle is on ② a goal is set and its status is 'アクティブ' ③ the round ended cleanly (no error / not stopped). It stops when the goal is marked done, or if you press ■ stop. Sending any prompt also starts an idle エージェント regardless."
+              title="自動継続はラウンド後に次の条件をすべて満たす場合のみ動作します: ①このトグルがON ②目標が設定されステータスが active ③ラウンドが正常終了（エラーなし・停止なし）。目標が done になるか ■ 停止で止まります。プロンプト送信でも待機中エージェントは起動します。"
             >
               <input
                 type="checkbox"
                 checked={sel()!.autoContinue ?? true}
                 onchange={(e) => {
                   if (!selected()) return;
-                  api(`/api/エージェントs/${selected()}/auto-continue`, {
+                  api(`/api/agents/${selected()}/auto-continue`, {
                     method: "POST",
                     headers: { "content-type": "application/json" },
                     body: JSON.stringify({ value: e.currentTarget.checked }),
                   }).then(refreshAgents);
                 }}
               />
-              auto-continue
+              自動継続
             </label>
-            <span class="muted">loops while goal is アクティブ · stops on done / stop</span>
+            <span class="muted">目標が active の間ループ · done/停止で終了</span>
           </div>
 
-          <h3 title="エージェントの作業目標 — auto-continue keeps looping while the status is 'アクティブ'">🎯 goal
+          <h3 title="エージェントの作業目標 — ステータスが active の間、自動継続がループします"><span class="mi">flag</span> 目標
             <Show
               when={!!sel()!.goal.text.trim()}
               fallback={<span class="badge" title="目標は未設定です">目標なし</span>}
             >
-              <span class={`badge ${sel()!.goal.status === "アクティブ" ? "running" : sel()!.goal.status}`}>{sel()!.goal.status}</span>
+              <span class={`badge ${sel()!.goal.status === "active" ? "running" : sel()!.goal.status}`}>{sel()!.goal.status}</span>
             </Show>
           </h3>
           <div class="statrow" style="margin-bottom:6px">
             <span class="k">status</span>
-            <For each={["アクティブ", "done", "paused"] as const}>
+            <For each={["active", "done", "paused"] as const}>
               {(s) => (
                 <button
                   // an EMPTY goal must not light up "▶ working": fresh
-                  // sessions store status:"アクティブ" by default, which made a
-                  // brand-new timeline look like the エージェント was already on it
+                  // sessions store status:"active" by default, which made a
+                  // brand-new timeline look like the agent was already on it
                   class={"goalstate" + (!!sel()!.goal.text.trim() && sel()!.goal.status === s ? ` on ${s}` : "")}
                   disabled={!!sel()!.goal.text.trim() && sel()!.goal.status === s}
                   title={
-                    s === "アクティブ"
-                      ? "エージェント keeps working toward the goal (with auto-continue)"
+                    s === "active"
+                      ? "目標に向けて作業を継続します（自動継続）"
                       : s === "done"
-                        ? "mark achieved — auto-continue stops"
-                        : "parked on purpose — resume by setting アクティブ again"
+                        ? "達成済みにする — 自動継続が止まります"
+                        : "意図的に一時停止中 — active に戻すと再開します"
                   }
                   onclick={() => {
                     if (!selected()) return;
-                    api(`/api/エージェントs/${selected()}/goal`, {
+                    api(`/api/agents/${selected()}/goal`, {
                       method: "POST",
                       headers: { "content-type": "application/json" },
                       body: JSON.stringify({ status: s }),
                     }).then(refreshAgents);
                   }}
-                >{s === "アクティブ" ? "▶ working" : s === "done" ? "done" : "paused"}</button>
+                >{s === "active" ? "▶ 作業中" : s === "done" ? "完了" : "一時停止"}</button>
               )}
             </For>
           </div>
           <Show
             when={sel()!.goal.text}
-            fallback={<div class="card muted">目標が未設定 — 下のフォームに入力して保存してください. その後 ▶ 開始（またはメッセージ入力）で起動します。</div>}
+            fallback={<div class="card muted">目標が未設定 — 下のフォームに入力して保存してください。その後 ▶ 開始（またはメッセージ送信）で動き出します。</div>}
           >
             <div class="card">
               <div class="content" innerHTML={renderMarkdown(String(sel()!.goal.text))} />
             </div>
             <Show when={sel()!.goal.verify}>
-              <div class="card verifycard" title="検証 контракт — finish(goalComplete=true) is audited against these requirements by an independent reviewer before the goal counts as done">
-                <div class="vtitle">🔍 検証 контракт</div>
+              <div class="card verifycard" title="検証コントラクト — finish(goalComplete=true) は独立したレビューアーによりこの要件と照合審査されます">
+                <div class="vtitle"><span class="mi">fact_check</span> 検証コントラクト</div>
                 <div class="content" innerHTML={renderMarkdown(String(sel()!.goal.verify))} />
               </div>
             </Show>
@@ -2887,7 +2887,7 @@ export default function App() {
               {(a) => (
                 <div class={"card auditcard " + (a().verdict === "approved" ? "ok" : "warn")}>
                   <div class="vtitle">
-                    {a().verdict === "approved" ? "check approved" : "error audit: changes required"}
+                    {a().verdict === "approved" ? <><span class="mi">check_circle</span> 監査: 承認</> : <><span class="mi">error</span> 監査: 要修正</>}
                     <span class="meta muted" style="margin-left:auto">{relTime(a().at)}</span>
                   </div>
                   <div class="content" innerHTML={renderMarkdown(a().feedback)} />
@@ -2896,7 +2896,7 @@ export default function App() {
             </Show>
           </Show>
           <div class="muted" style="font-size:11px;margin-top:4px">
-            stored with the session · the エージェント reads it via get_goal() · auto-continue loops while status is "working" and stops when marked done
+            セッションに保存 · エージェントは get_goal() で読みます · ステータス working の間は自動継続し done で停止します
           </div>
           <form onsubmit={setGoal} style="display:flex;flex-direction:column;gap:6px;margin-top:8px;margin-bottom:6px">
             <textarea
@@ -2910,8 +2910,8 @@ export default function App() {
             <textarea
               id="goal-verify-input"
               rows={2}
-              placeholder="検証 контракт (optional) — e.g. 'npm test passes; endpoint documented'. finish(goalComplete=true) is then audited against this."
-              title="pi-goal-x-style 検証 контракт — an independent reviewer checks the エージェント's finish against these requirements"
+              placeholder="検証コントラクト (任意) — 例: 'npm test が通ること; エンドポイントを文書化'. finish(goalComplete=true) はこれと照合されます。"
+              title="検証コントラクト — 独立したレビューアーがエージェントの finish をこの要件と照合します"
               value={goalVerifyDraft()}
               oninput={(e) => { setGoalVerifyDraft(e.currentTarget.value); setGoalDirty(true); }}
               style="background:var(--bg-darkest);border:1px solid var(--bg-light);border-radius:6px;padding:6px 8px;color:var(--fg);font:inherit;font-size:12.5px;width:100%;resize:vertical"
@@ -2920,22 +2920,22 @@ export default function App() {
               <label
                 class="muted"
                 style="display:flex;align-items:center;gap:4px;font-size:11.5px;white-space:nowrap;cursor:pointer"
-                title="キュー a harness prompt telling the エージェント about the new goal at its next turn boundary"
+                title="次のターンの区切りで新しい目標をエージェントに伝えるハーネスプロンプトをキューに入れる"
               >
-                <input id="goal-notify" type="checkbox" checked={goalNotify()} onchange={(e) => setGoalNotify(e.currentTarget.checked)} /> notify エージェント
+                <input id="goal-notify" type="checkbox" checked={goalNotify()} onchange={(e) => setGoalNotify(e.currentTarget.checked)} /> エージェントに通知
               </label>
               <button type="submit" style="background:var(--acc);border:none;border-radius:6px;color:#fff;padding:4px 12px;cursor:pointer">目標を保存</button>
             </div>
           </form>
 
-          <h3 title="todo.md — セッションディレクトリの共有チェックリスト. Write tasks like '- [ ] fix login'; the エージェント ticks them off via set_todo, you edit here. With notify on, it's told at its next turn boundary.">
-            tasks
+          <h3 title="todo.md — セッションディレクトリの共有チェックリスト。「- [ ] ログイン修正」のように書くと、エージェントが set_todo でチェックします。ここでも編集可。通知ONなら次のターンで伝わります。">
+            タスク
             <Show when={todoStats().total > 0}>
               <span class="badge" style={todoStats().done === todoStats().total ? "color:var(--ok)" : "color:var(--warn)"}>
                 {todoStats().done}/{todoStats().total} done
               </span>
             </Show>
-            <span class="muted" style="text-transform:none;letter-spacing:0">· shared checklist (you + エージェント)</span>
+            <span class="muted" style="text-transform:none;letter-spacing:0">· 共有チェックリスト（あなた + エージェント）</span>
           </h3>
           <Show when={todoStats().total > 0}>
             <div class="bartrack" style="margin-bottom:6px">
@@ -2962,7 +2962,7 @@ export default function App() {
                 setTodoDraft(e.currentTarget.value);
                 setTodoDirty(true);
               }}
-              title="shared with the エージェント — it may check items off via set_todo; your unsaved edits win until you save"
+              title="エージェントと共有 — set_todo でチェックされることがあります。保存するまではあなたの未保存編集が優先されます"
               style="width:100%;background:var(--bg-darkest);border:none;border-radius:6px;padding:6px 8px;color:var(--fg);font-family:ui-monospace,Menlo,monospace;font-size:12.5px;resize:vertical"
             />
           </Show>
@@ -2975,9 +2975,9 @@ export default function App() {
             <label
               class="muted"
               style="display:flex;align-items:center;gap:4px;font-size:11.5px;white-space:nowrap;cursor:pointer"
-              title="キュー a harness prompt telling the エージェント the task list changed"
+              title="タスク一覧の変更をエージェントに伝えるハーネスプロンプトをキューに入れる"
             >
-              <input id="todo-notify" type="checkbox" checked /> notify エージェント
+              <input id="todo-notify" type="checkbox" checked /> エージェントに通知
             </label>
             <button
               onclick={saveTodo}
@@ -2985,16 +2985,16 @@ export default function App() {
             >タスクを保存</button>
           </div>
 
-          <h3 title="latest report_progress snapshot. The harness asks for one after real activity (time AND output gates); errors show under 問題">進捗</h3>
+          <h3 title="report_progress の最新スナップショット。ハーネスは実際の活動の後に要求します。エラーは「問題」に表示">進捗</h3>
           <Show
             when={sel()!.latestProgress}
-            fallback={<div class="muted">まだありません — ハーネスは実際の活動の後にレポートを要求します, and the エージェント can report_progress anytime</div>}
+            fallback={<div class="muted">まだありません — ハーネスは実際の活動の後にレポートを要求します。エージェントはいつでも report_progress できます。</div>}
           >
             {(p) => (
               <div class="card prog">
                 <div class="progrow"><b>doing</b><span class="content inline-md" innerHTML={renderMarkdownCached(p().doing)} /></div>
                 <Show when={p().recent}><div class="progrow"><b>recent</b><span class="content inline-md" innerHTML={renderMarkdownCached(p().recent)} /></div></Show>
-                <Show when={p().問題}><div class="progrow warn"><b>問題</b><span class="content inline-md" innerHTML={renderMarkdownCached(p().問題)} /></div></Show>
+                <Show when={p().problems}><div class="progrow warn"><b>問題</b><span class="content inline-md" innerHTML={renderMarkdownCached(p().problems)} /></div></Show>
                 <Show when={p().next}><div class="progrow"><b>次へ</b><span class="content inline-md" innerHTML={renderMarkdownCached(p().next)} /></div></Show>
                 <Show when={p().goalStatus}><div class="progrow"><b>goal</b><span>{p().goalStatus}</span></div></Show>
                 <div class="meta muted">{relTime(p().ts)}</div>
@@ -3002,22 +3002,22 @@ export default function App() {
             )}
           </Show>
 
-          <h3 title="cumulative billed totals · the cached pill counts tokens served from the provider's prompt cache (far cヒープer) · context bar turns orange ≥70% and red ≥85% of the model window">📊 runtime</h3>
+          <h3 title="課金の累計 · キャッシュ表示はプロバイダーのプロンプトキャッシュ由来トークン（大幅に安価） · コンテキストバーはモデル窓の70%以上で橙・85%以上で赤"><span class="mi">monitoring</span> 実行状況</h3>
           <div class="card runcard">
             <div class="statgrid">
-              <div class="stat" title="LLM turns taken this session"><span>turns</span><b>{sel()!.stats.turns}</b></div>
-              <div class="stat" title="tool calls executed"><span>tools</span><b>{sel()!.stats.toolCalls}</b></div>
-              <div class="stat" title="times old turns were summarized to free context"><span>compacted</span><b>{sel()!.stats.compactions ?? 0}</b></div>
+              <div class="stat" title="このセッションのLLMターン数"><span>ターン</span><b>{sel()!.stats.turns}</b></div>
+              <div class="stat" title="実行したツール呼び出し"><span>ツール</span><b>{sel()!.stats.toolCalls}</b></div>
+              <div class="stat" title="コンテキスト解放のため古いターンを要約した回数"><span>圧縮</span><b>{sel()!.stats.compactions ?? 0}</b></div>
             </div>
             <div class="statrow">
-              <span class="k">tokens</span>
-              <b>{fmtK(sel()!.stats.inputTokens)} in / {fmtK(sel()!.stats.outputTokens)} out</b>
+              <span class="k">トークン</span>
+              <b>入力{fmtK(sel()!.stats.inputTokens)} / 出力{fmtK(sel()!.stats.outputTokens)}</b>
               <Show when={(sel()!.stats.cachedInputTokens ?? 0) > 0}>
                 <span
                   class="pill ok"
-                  title={`${fmtK(sel()!.stats.cachedInputTokens)} tokens were served from the provider's prompt cache — billed far cヒープer than fresh input`}
+                  title={`${fmtK(sel()!.stats.cachedInputTokens)}トークンはプロバイダーのプロンプトキャッシュ由来 — 新規入力より大幅に安価`}
                 >
-                  ⚡ {(Math.round((sel()!.stats.cachedInputTokens / Math.max(1, sel()!.stats.inputTokens)) * 1000) / 10)}% cached
+                  <span class="mi">bolt</span> {(Math.round((sel()!.stats.cachedInputTokens / Math.max(1, sel()!.stats.inputTokens)) * 1000) / 10)}% キャッシュ
                 </span>
               </Show>
             </div>
@@ -3028,7 +3028,7 @@ export default function App() {
                 class="statrow"
                 title={`≈ ${(sel()!.stats.costUsd ?? 0).toFixed(4)} this session, from the model's USD/token pricing and per-turn usage. Cached input is estimated at ~10% of the prompt rate; treat as an approximation, not an invoice.`}
               >
-                <span class="k">cost</span>
+                <span class="k">費用</span>
                 <b>${costFmt(sel()!.stats.costUsd ?? 0)}</b>
               </div>
             </Show>
@@ -3037,8 +3037,8 @@ export default function App() {
               keyed
               fallback={
                 <div class="statrow">
-                  <span class="k">context</span>
-                  <span class="muted">no window known for this model yet</span>
+                  <span class="k">コンテキスト</span>
+                  <span class="muted">このモデルの窓はまだ不明です</span>
                 </div>
               }
             >
@@ -3046,8 +3046,8 @@ export default function App() {
                 // ALL derived values are memos: this callback used to run ONCE
                 // (unkeyed <Show> builds its children a single time), freezing
                 // pct/bar/labels at the first snapshot — the gauge then showed
-                // "0% of 1m" forever while the token count itself kept 更新中
-                // (that count is a JSX expression, so it stayed reアクティブ).
+                // "0% of 1m" forever while the token count itself kept updating
+                // (that count is a JSX expression, so it stayed reactive).
                 const ctxVals = createMemo(() => {
                   const cv = c;
                   const modelMeta = models().find((m) => m.id === sel()!.model);
@@ -3077,14 +3077,14 @@ export default function App() {
                 return (
                   <div
                     class="ctxblock"
-                    title="estimated live context vs the model's real window. Past the window, old turns are summarized into notes (compaction); the compact line below shows where that starts."
+                    title="予測ライブコンテキスト対モデル実窓's real window. Past the window, old turns are summarized into notes (compaction); the compact line below shows where that starts."
                   >
                     <div class="statrow">
-                      <span class="k">context</span>
-                      <b>~{fmtK(v().usedTokens)} tok</b>
+                      <span class="k">コンテキスト</span>
+                      <b>約{fmtK(v().usedTokens)}トークン</b>
                       <Show when={v().effectiveWindow}>
                         <span class={`pill ${v().cls}`}>
-                          {fmtPct(v().pct)}% of {fmtK(v().effectiveWindow)}
+                          {fmtK(v().effectiveWindow)}中{fmtPct(v().pct)}%
                         </span>
                       </Show>
                     </div>
@@ -3106,34 +3106,34 @@ export default function App() {
                       </div>
                     </Show>
                     <Show when={compacting() || v().compacting}>
-                      <div class="statrow" title="a compaction pass is running right now — the summarizer's output streams in the timeline">
-                        <span class="k">🗜</span>
-                        <b>compacting…</b>
+                      <div class="statrow" title="圧縮パスが現在実行中 — the summarizer's output streams in the timeline">
+                        <span class="k"><span class="mi">summarize</span></span>
+                        <b>圧縮中…</b>
                         <span class="muted" style="font-size:11px;color:var(--acc)">
                           {compacting()?.phase ?? String(v().compacting)}
                         </span>
                       </div>
                     </Show>
                     <div class="ctrlrow" style="margin-top:6px">
-                      <label title="when on, older turns are automatically summarized when context exceeds the budget">
+                      <label title="ONのとき、コンテキストが予算を超えると古いターンを自動要約します">
                         <input
                           type="checkbox"
                           checked={sel()!.autoCompact !== false}
                           onchange={(e) => {
                             if (!selected()) return;
-                            api(`/api/エージェントs/${selected()}/auto-compact`, {
+                            api(`/api/agents/${selected()}/auto-compact`, {
                               method: "POST",
                               headers: { "content-type": "application/json" },
                               body: JSON.stringify({ value: e.currentTarget.checked }),
                             }).then(refreshAgents);
                           }}
                         />
-                        auto-compact
+                        自動圧縮
                       </label>
-                      <span class="muted" style="font-size:11.5px">summarizes old turns when budget exceeded</span>
+                      <span class="muted" style="font-size:11.5px">予算超過時に古いターンを要約</span>
                     </div>
                     <div class="muted" style="font-size:11px;margin-top:4px">
-                      compaction starts around ~{fmtK(v().compactAt)} tok — older turns get summarized, recent ones stay intact
+                      圧縮は次の付近で開始 ~{fmtK(v().compactAt)} tok — 古いターンは要約、直近は保持
                     </div>
                   </div>
                 );
@@ -3141,7 +3141,7 @@ export default function App() {
             </Show>
           </div>
 
-          <h3>🌿 branches <span class="muted" style="text-transform:none;letter-spacing:0">· click to filter the feed</span></h3>
+          <h3><span class="mi">account_tree</span> ブランチ <span class="muted" style="text-transform:none;letter-spacing:0">· クリックでフィードを絞込</span></h3>
           <For each={branches()}>
             {(b) => (
               <div
@@ -3159,25 +3159,25 @@ export default function App() {
             )}
           </For>
 
-          <h3>schedule <span class="muted" style="text-transform:none;letter-spacing:0">· cronタスク（全エージェント）· 設定から編集</span></h3>
+          <h3><span class="mi">schedule</span> スケジュール <span class="muted" style="text-transform:none;letter-spacing:0">· cronタスク（全エージェント）· 設定から編集</span></h3>
           <Show
             when={tasks().length > 0}
-            fallback={<div class="muted">定期タスクがありません — 設定から追加してください ("scheduled tasks")</div>}
+            fallback={<div class="muted">定期タスクがありません — 設定から追加してください</div>}
           >
             <For each={tasks()}>
               {(t) => (
                 <div
-                  class={"sched-row" + (t.エージェント === selected() ? " cur" : "")}
-                  title={`${oneLine(t.prompt, 200)}\nclick to open #${t.エージェント}`}
-                  onclick={() => select(t.エージェント)}
+                  class={"sched-row" + (t.agent === selected() ? " cur" : "")}
+                  title={`${oneLine(t.prompt, 200)}\nクリックで #${t.agent} を開く`}
+                  onclick={() => select(t.agent)}
                 >
                   <div class="sched-top">
                     <b>{t.id}</b>
-                    <span class="muted">@{t.エージェント}</span>
-                    <Show when={t.forked}><span title="runs on a forked branch so chatter stays off the main line">⑂</span></Show>
+                    <span class="muted">@{t.agent}</span>
+                    <Show when={t.forked}><span title="フォークしたブランチで実行中（本線に雑談が混ざりません）"><span class="mi">call_split</span></span></Show>
                   </div>
                   <div class="sched-meta mono">
-                    {t.schedule} → next {t.next ? relTime(t.next) : "—"}{t.last ? ` · last ${relTime(t.last)}` : " · never ran"}
+                    {t.schedule} → 次回 {t.next ? relTime(t.next) : "—"}{t.last ? ` · 前回 ${relTime(t.last)}` : " · 未実行"}
                   </div>
                   <div class="sched-prompt muted">{oneLine(t.prompt, 90)}</div>
                 </div>
@@ -3194,12 +3194,12 @@ export default function App() {
       <div class="notifbackdrop" onclick={() => setShowNotifs(false)} />
       <div class="notifpanel">
         <div class="notifhead">
-          notifications
+          通知
           <span style="display:flex;gap:8px;align-items:center">
             <Show when={notifs().length > 0}>
               <button class="editbtn" onclick={() => setNotifs([])}>すべてクリア</button>
             </Show>
-            <button class="iconbtn" title="close notifications" onclick={() => setShowNotifs(false)}>✕</button>
+            <button class="iconbtn" title="通知を閉じる" onclick={() => setShowNotifs(false)}>✕</button>
           </span>
         </div>
         <Show
@@ -3211,16 +3211,16 @@ export default function App() {
               {(n) => (
                 <div
                   class={"notifitem " + n.kind + (n.read ? " read" : "")}
-                  title={`from ${n.エージェントId}`}
+                  title={`主: ${n.agentId}`}
                   onclick={() => {
-                    // mark THIS one read, jump to its エージェント and scroll the
+                    // mark THIS one read, jump to its agent and scroll the
                     // timeline to the exact message that raised it
                     setNotifs((list) => list.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
-                    if (selected() !== n.エージェントId && エージェントs().some((a) => a.id === n.エージェントId)) select(n.エージェントId);
+                    if (selected() !== n.agentId && agents().some((a) => a.id === n.agentId)) select(n.agentId);
                     setShowNotifs(false);
                     if (n.eventId)
                       // wait for the timeline swap before scrolling
-                      setTimeout(() => jumpToEvent(n.eventId!), selected() !== n.エージェントId ? 350 : 60);
+                      setTimeout(() => jumpToEvent(n.eventId!), selected() !== n.agentId ? 350 : 60);
                   }}
                 >
                   
@@ -3230,7 +3230,7 @@ export default function App() {
                     <span class="meta muted">{relTime(new Date(n.at).toISOString())}</span>
                     <button
                       class="iconbtn nreadbtn"
-                      title={n.read ? "already read" : "mark as read"}
+                      title={n.read ? "既読" : "既読にする"}
                       onclick={(e: MouseEvent) => {
                         e.stopPropagation();
                         setNotifs((list) => list.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
@@ -3263,13 +3263,13 @@ export default function App() {
         const afterCount = () => Math.max(0, events().length - idx() - 1);
         const [tail, setTail] = createSignal<"summarize" | "discard">(afterCount() > 0 ? "summarize" : "discard");
         return (
-          <Modal title="edit prompt — forks the conversation" onClose={() => setEditing(null)}>
+          <Modal title="プロンプトを編集 — 会話をフォークします" onClose={() => setEditing(null)}>
             <form
               onsubmit={async (ev) => {
                 ev.preventDefault();
                 const ta = document.getElementById("edit-text") as HTMLTextAreaElement;
                 try {
-                  await api(`/api/エージェントs/${selected()}/edit-prompt`, {
+                  await api(`/api/agents/${selected()}/edit-prompt`, {
                     method: "POST",
                     headers: { "content-type": "application/json" },
                     body: JSON.stringify({ eventId: ed().eventId, text: ta.value, tail: tail() }),
@@ -3279,7 +3279,7 @@ export default function App() {
                   const id = selected();
                   if (id) await select(id);
                 } catch (ex) {
-                  alert(`edit failed: ${(ex as Error).message}`);
+                  alert(`編集に失敗: ${(ex as Error).message}`);
                 }
               }}
               style="display:flex;flex-direction:column;gap:10px"
@@ -3288,22 +3288,22 @@ export default function App() {
               <Show when={afterCount() > 0}>
                 <div>
                   <div style="font-size:12.5px;margin-bottom:4px">
-                    {afterCount()} event(s) came after this prompt — what should happen to them on the new branch?
+                    このプロンプトの後に{afterCount()}件のイベントがあります — 新しいブランチでどう扱いますか?
                   </div>
                   <label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--fg)">
                     <input type="radio" name="tail" checked={tail() === "summarize"} onchange={() => setTail("summarize")} />
-                    summarize them into a note the エージェント can still read
+                    エージェントが読めるメモに要約する
                   </label>
                   <label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--fg)">
                     <input type="radio" name="tail" checked={tail() === "discard"} onchange={() => setTail("discard")} />
-                    discard them entirely (clean timeline)
+                    全部破棄する（きれいなタイムライン）
                   </label>
                 </div>
               </Show>
               <div style="display:flex;justify-content:flex-end;gap:8px">
                 <button type="button" onclick={() => setEditing(null)}>キャンセル</button>
                 <button type="submit" style="background:var(--acc);border:none;border-radius:6px;color:#fff;padding:6px 12px;cursor:pointer">
-                  ⑂ fork & resend
+                  <span class="mi">call_split</span> フォークして再送
                 </button>
               </div>
             </form>
@@ -3357,14 +3357,14 @@ function ThinkingTimer(props: { startedAt: number }) {
 
 /* ---------- per-tool timeline rendering ---------- */
 
-function ToolRow(props: { e: Ev; res?: Ev; エージェントActive?: boolean; onResize?: () => void }) {
+function ToolRow(props: { e: Ev; res?: Ev; agentActive?: boolean; onResize?: () => void }) {
   const e = props.e;
   const res = props.res;
-  // STALE-RUN GUARD: if the エージェント is no longer running, an unpaired tool_call
+  // STALE-RUN GUARD: if the agent is no longer running, an unpaired tool_call
   // cannot still be in flight (its result event was missed — e.g. logged while
   // the tab was hidden). Rendering it forever as "running…" was exactly that:
   // switching sessions and back "fixed" it because that reloaded the log.
-  const staleDone = !props.エージェントActive && !res;
+  const staleDone = !props.agentActive && !res;
   const d = e.data ?? {};
   const name = String(d.name ?? "tool");
   const out = () => (res ? String(res.data?.result ?? "") : "");
@@ -3409,12 +3409,12 @@ function ToolRow(props: { e: Ev; res?: Ev; エージェントActive?: boolean; o
       case "bash": {
         const cmd = argStr("command");
         const isBg = d.args?.background === true;
-        // バックグラウンドジョブs return INSTANTLY (the shell keeps running) — a plain
+        // background jobs return INSTANTLY (the shell keeps running) — a plain
         // "$ cmd · 12ms" row read as "finished immediately" and the job was
         // forgotten. Give them their own identity + the job id for bash_output.
         const bgJob = isBg ? (String(out()).match(/job (bg\d+)/)?.[1] ?? "") : "";
-        label = (isBg ? "⏳ " : "$ ") + oneLine(cmd, 96);
-        const timeoutHint = argStr("timeout_ms") ? ` · timeout ${Math.round(Number(argStr("timeout_ms")) / 1000)}s` : "";
+        label = (isBg ? "BG " : "$ ") + oneLine(cmd, 96);
+        const timeoutHint = argStr("timeout_ms") ? ` · 制限時間${Math.round(Number(argStr("timeout_ms")) / 1000)}秒` : "";
         hint = res
           ? isBg
             ? `バックグラウンドジョブ${bgJob ? ` ${bgJob}` : ""}${timeoutHint}`
@@ -3455,7 +3455,7 @@ function ToolRow(props: { e: Ev; res?: Ev; エージェントActive?: boolean; o
         body = (
           <>
             {codeBlock(content, 1500)}
-            {content.length > 1500 ? <div class="meta muted">{fmtK(content.length)} bytes — open it from 🗂 files for the full view</div> : null}
+            {content.length > 1500 ? <div class="meta muted">{fmtK(content.length)} bytes — ファイル一覧から開くと全体を見られます</div> : null}
             {res ? <div class="meta">{oneLine(out(), 160)}</div> : <div class="meta">writing…</div>}
           </>
         );
@@ -3578,7 +3578,7 @@ function ToolRow(props: { e: Ev; res?: Ev; エージェントActive?: boolean; o
       }}
     >
       <summary>
-        <b>{icon} {label}</b>
+        <b><span class="mi">{icon}</span> {label}</b>
         <Show when={e.data?.actor}>
           <span class="actor">@{String(e.data.actor)}</span>
         </Show>
@@ -3596,9 +3596,9 @@ function ToolRow(props: { e: Ev; res?: Ev; エージェントActive?: boolean; o
             rows (rawOf only knows prompts/messages) — now the command that ran
             and its output each have their own button */}
         <span class="toolcopy">
-          <CopyBtn text={cmdText()} label="⧉ cmd" title={`copy the ${name} arguments`} />
+          <CopyBtn text={cmdText()} label="コマンド" title={`${name} の引数をコピー`} />
           <Show when={res}>
-            <CopyBtn text={out()} label="⧉ out" title="copy this tool's full output" />
+            <CopyBtn text={out()} label="出力" title="このツールの全出力をコピー" />
           </Show>
         </span>
       </summary>
@@ -3627,7 +3627,7 @@ function rawOf(e: Ev): string {
   return "";
 }
 
-function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; onCancel?: () => void; onOption?: (text: string) => void; answeredIds?: Set<string>; エージェントActive?: boolean; onResize?: () => void }) {
+function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; onCancel?: () => void; onOption?: (text: string) => void; answeredIds?: Set<string>; agentActive?: boolean; onResize?: () => void }) {
   const e = props.e;
   const a = authorOf(e);
   // Group consecutive rows from the same ACTOR. The actor for tool events is
@@ -3636,7 +3636,7 @@ function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; on
   const actorKey = (ev: Ev): string => {
     const d = ev.data ?? {};
     if (ev.data?.actor) return `sub:${String(ev.data.actor)}`;
-    if (ev.type === "tool_call" || ev.type === "tool_result") return "エージェント-tools";
+    if (ev.type === "tool_call" || ev.type === "tool_result") return "agent-tools";
     if (ev.type === "prompt") return `src:${String(d.source ?? "user")}`;
     return `type:${ev.type}`;
   };
@@ -3652,14 +3652,14 @@ function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; on
     const d = e.data ?? {};
     return (
       <div class="divider-msg">
-        ⑂ forked from {String(d.fromBranch ?? "?")} → {String(d.newBranch ?? e.branch)}
+        <span class="mi">call_split</span> {String(d.fromBranch ?? "?")} からフォーク → {String(d.newBranch ?? e.branch)}
       </div>
     );
   }
   if (e.type === "goal") {
     const d = e.data ?? {};
     const what = d.event === "status" ? `marked ${String(d.status ?? "")}` : oneLine(String(d.text ?? ""), 80);
-    return <div class="divider-msg">🎯 goal {String(d.event ?? "")}: {what}</div>;
+    return <div class="divider-msg"><span class="mi">flag</span> 目標 {String(d.event ?? "")}: {what}</div>;
   }
   if (e.type === "todo") {
     return <div class="divider-msg">タスクを更新しました ({String(e.data?.by ?? "human")})</div>;
@@ -3688,8 +3688,8 @@ function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; on
     }
     if (ev === "error-retry") {
       return (
-        <div class="embed warn-embed" title="a round-fatal API error occurred; auto-retry is waiting, then a fresh round starts (onError: retry)">
-          <div class="mono">↻ API error — retrying (attempt {String(e.data?.attempt)}) in {Math.round(Number(e.data?.waitMs) / 1000)}s…</div>
+        <div class="embed warn-embed" title="ラウンド致命的なAPIエラーが発生。自動リトライ待機中、次に新しいラウンド開始 (onError: retry)">
+          <div class="mono">↻ APIエラー — リトライ中 (試行 {String(e.data?.attempt)}) in {Math.round(Number(e.data?.waitMs) / 1000)}s…</div>
         </div>
       );
     }
@@ -3698,7 +3698,7 @@ function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; on
       const secs = Math.round(Number(e.data?.durationMs ?? 0) / 1000);
       return (
         <div class={"divider-msg" + (failed ? " err" : "")} title={String(e.data?.cmd ?? "")}>
-          {(failed ? "バックグラウンドジョブ " : "done バックグラウンドジョブ ") +
+          {(failed ? "バックグラウンドジョブ " : "バックグラウンドジョブ完了 ") +
             String(e.data?.jobId ?? "?") + " " +
             (failed ? `FAILED (exit ${String(e.data?.code ?? "?")})` : `finished (${secs}s)`)}
         </div>
@@ -3707,7 +3707,7 @@ function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; on
     if (ev === "context-compacted") {
       return (
         <div class="divider-msg">
-          🗜 compacted: {String(e.data?.tokensBefore ?? "?")} → {String(e.data?.tokensAfter ?? "?")} tok ({String(e.data?.mode ?? "")})
+          <span class="mi">summarize</span> 圧縮: {String(e.data?.tokensBefore ?? "?")} → {String(e.data?.tokensAfter ?? "?")} tok ({String(e.data?.mode ?? "")})
         </div>
       );
     }
@@ -3738,12 +3738,12 @@ function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; on
             <Show when={e.data?.actor}>
               <span class="actor">@{String(e.data.actor)}</span>
             </Show>
-            <span class="ts">{e.data?.pending ? "キューd…" : fmtTs(e.ts)}</span>
+            <span class="ts">{e.data?.pending ? "送信待ち…" : fmtTs(e.ts)}</span>
             <span class="ts">{e.branch}</span>
             <Show when={props.onCancel}>
               <button
                 class="editbtn"
-                title="withdraw this message — it has not reached the model yet; the text goes back to the input box"
+                title="このメッセージを取り下げ — まだモデルに届いていません。テキストは入力欄に戻ります"
                 onclick={(ev: MouseEvent) => { ev.stopPropagation(); props.onCancel!(); }}
               >キャンセル</button>
             </Show>
@@ -3751,26 +3751,26 @@ function MessageRow(props: { e: Ev; prev?: Ev; res?: Ev; onEdit?: () => void; on
                 buttons live inside ToolRow; rendering the header button anyway
                 produced a "copy" that silently copied the empty string */}
             <Show when={e.type !== "tool_call"}>
-              <CopyBtn text={rawOf(e)} label="⧉ copy" title="copy the RAW text of this message (no markdown rendering)" />
+              <CopyBtn text={rawOf(e)} label="コピー" title="このメッセージの原文をコピー（markdownレンダリングなし）" />
             </Show>
             <Show when={props.onEdit}>
               <button
                 class="editbtn"
-                title="edit this prompt — forks the conversation here (later events are dropped or summarized)"
+                title="このプロンプトを編集 — ここから会話をフォーク（後続イベントは破棄か要約）"
                 onclick={(ev: MouseEvent) => { ev.stopPropagation(); props.onEdit!(); }}
               >編集</button>
             </Show>
           </div>
         </Show>
 
-        <SwitchContent e={e} res={props.res} onOption={props.onOption} answeredIds={props.answeredIds} エージェントActive={props.エージェントActive} onResize={props.onResize} />
+        <SwitchContent e={e} res={props.res} onOption={props.onOption} answeredIds={props.answeredIds} agentActive={props.agentActive} onResize={props.onResize} />
       </div>
     </div>
   );
 }
 
 /**
- * Free-text answer row under an ask_user embed. The エージェント's reply arrives as
+ * Free-text answer row under an ask_user embed. The agent's reply arrives as
  * a regular user prompt, so this just routes through onOption — but it lets
  * the operator answer with something that wasn't among the offered options.
  */
@@ -3786,7 +3786,7 @@ function FreeTextAnswer(props: { answered: boolean; onOption?: (t: string) => vo
     <div class="qfree">
       <input
         type="text"
-        placeholder={props.answered ? "answered" : "or type your own answer…"}
+        placeholder={props.answered ? "回答済み" : "または独自の回答を入力…"}
         disabled={props.answered}
         value={val()}
         oninput={(e) => setVal(e.currentTarget.value)}
@@ -3794,12 +3794,12 @@ function FreeTextAnswer(props: { answered: boolean; onOption?: (t: string) => vo
           if (e.key === "Enter") { e.preventDefault(); submit(); }
         }}
       />
-      <button disabled={props.answered || !val().trim()} onclick={submit}>reply</button>
+      <button disabled={props.answered || !val().trim()} onclick={submit}>返信</button>
     </div>
   );
 }
 
-function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => void; answeredIds?: Set<string>; エージェントActive?: boolean; onResize?: () => void }) {
+function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => void; answeredIds?: Set<string>; agentActive?: boolean; onResize?: () => void }) {
   const e = props.e;
   switch (e.type) {
     case "prompt": {
@@ -3822,7 +3822,7 @@ function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => vo
         <>
           <Show when={typeof e.data.reasoning === "string" && e.data.reasoning.trim()}>
             <details class="reasoning">
-              <summary>💭 reasoning{String(e.data.reasoning).length > 4000 ? ` (${fmtK(String(e.data.reasoning).length)} — truncated)` : ""}</summary>
+              <summary><span class="mi">psychology</span> 思考過程{String(e.data.reasoning).length > 4000 ? ` (${fmtK(String(e.data.reasoning).length)} — 省略表示)` : ""}</summary>
               <div class="mono">{truncate(String(e.data.reasoning), 8000)}</div>
             </details>
           </Show>
@@ -3831,12 +3831,12 @@ function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => vo
             <div class="interrupted">中断 — 部分的出力を保持</div>
           </Show>
           <Show when={e.data.final}>
-            <div class="msgfoot"><CopyBtn text={String(e.data.content ?? "")} /><span>copy summary</span></div>
+            <div class="msgfoot"><CopyBtn text={String(e.data.content ?? "")} /><span>要約をコピー</span></div>
           </Show>
         </>
       );
     case "tool_call":
-      return <ToolRow e={e} res={props.res} エージェントActive={props.エージェントActive} onResize={props.onResize} />;
+      return <ToolRow e={e} res={props.res} agentActive={props.agentActive} onResize={props.onResize} />;
     case "tool_result": {
       // orphan result (its call scrolled past the 300-event window)
       const out = String(e.data.result);
@@ -3879,7 +3879,7 @@ function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => vo
         <div class={"embed question" + (answered ? " answered" : "")}>
           {/* questions are model-written and often carry markdown (code refs,
               lists) — render them like progress embeds instead of dumping raw */}
-          <div>question <div class="content inline-md" innerHTML={renderMarkdownCached(String(e.data?.question ?? ""))} /></div>
+          <div><span class="mi">help</span> <div class="content inline-md" innerHTML={renderMarkdownCached(String(e.data?.question ?? ""))} /></div>
           <Show when={answered}>
             <div class="meta" style="color:var(--ok)">✓ 回答済み — 下で続行</div>
           </Show>
@@ -3893,7 +3893,7 @@ function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => vo
                     onclick={() => {
                       const actor = e.data?.actor;
                       if (actor) {
-                        void api(`/api/エージェントs/${encodeURIComponent(String(actor))}/prompt`, {
+                        void api(`/api/agents/${encodeURIComponent(String(actor))}/prompt`, {
                           method: "POST",
                           headers: { "content-type": "application/json" },
                           body: JSON.stringify({ text: o, start: true }),
@@ -3916,10 +3916,10 @@ function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => vo
         <div class="embed" style="border-color: var(--ok)">
           {/* progress bodies are model-written markdown — render them, don't
               dump raw text (structured fields keep their labels) */}
-          <div>progress <div class="content inline-md" innerHTML={renderMarkdownCached(String(e.data.doing ?? ""))} /></div>
+          <div><span class="mi">trending_up</span> <div class="content inline-md" innerHTML={renderMarkdownCached(String(e.data.doing ?? ""))} /></div>
           <Show when={e.data.goalStatus}><div class="progrow"><b>goal</b><span>{String(e.data.goalStatus)}</span></div></Show>
           <Show when={e.data.recent}><div class="progrow"><b>recent</b><span class="content inline-md" innerHTML={renderMarkdownCached(String(e.data.recent))} /></div></Show>
-          <Show when={e.data.問題}><div class="progrow warn"><b>問題</b><span class="content inline-md" innerHTML={renderMarkdownCached(String(e.data.問題))} /></div></Show>
+          <Show when={e.data.problems}><div class="progrow warn"><b>問題</b><span class="content inline-md" innerHTML={renderMarkdownCached(String(e.data.problems))} /></div></Show>
           <Show when={e.data.next}><div class="progrow"><b>次へ</b><span class="content inline-md" innerHTML={renderMarkdownCached(String(e.data.next))} /></div></Show>
         </div>
       );
@@ -3929,14 +3929,14 @@ function SwitchContent(props: { e: Ev; res?: Ev; onOption?: (text: string) => vo
       return (
         <details class="embed compaction">
           <summary>
-            <b>🗜 コンテキストを圧縮しました</b>
+            <b><span class="mi">summarize</span> コンテキストを圧縮しました</b>
             <span class="meta">
               {String(e.data.mode ?? "")} · {fmtK(Number(e.data.tokensBefore ?? 0))} → {fmtK(Number(e.data.tokensAfter ?? 0))} tok
               {" · "}{e.data.summarized ? `${e.data.summarized} summarized` : `${e.data.dropped} dropped`}
             </span>
           </summary>
           <Show when={e.data.summary}>
-            <div class="vtitle" style="margin-top:6px">what the エージェント kept</div>
+            <div class="vtitle" style="margin-top:6px">what the agent kept</div>
             <div class="content" innerHTML={renderMarkdownCached(String(e.data.summary))} />
           </Show>
         </details>
@@ -3993,14 +3993,14 @@ function IconBtn(props: {
   icon: string;
   title: string;
   onClick?: (e: MouseEvent) => void;
-  アクティブ?: boolean;
+  active?: boolean;
   class?: string;
   style?: string;
 }) {
   return (
     <button
       type="button"
-      class={"iconbtn" + (props.アクティブ ? " アクティブ" : "") + (props.class ? " " + props.class : "")}
+      class={"iconbtn" + (props.active ? " active" : "") + (props.class ? " " + props.class : "")}
       title={props.title}
       onclick={props.onClick}
       style={props.style}
@@ -4051,9 +4051,9 @@ function CopyBtn(props: { text: string; label?: string; title?: string }) {
   return (
     <button
       class="copybtn"
-      title={props.title ?? "copy to clipboard"}
+      title={props.title ?? "クリップボードにコピー"}
       onclick={copy}
-    >{done() ? "✓" : failed() ? "✗" : props.label ?? "⧉"}</button>
+    >{done() ? "✓" : failed() ? "✗" : <><span class="mi">content_copy</span>{props.label ? ` ${props.label}` : ""}</>}</button>
   );
 }
 
@@ -4072,7 +4072,7 @@ function Modal(props: { title: string; onClose: () => void; children: any }) {
   );
 }
 
-/* ---------- new エージェント ---------- */
+/* ---------- new agent ---------- */
 function NewAgentModal(props: { providers: string[]; onClose: () => void; onCreated: (id: string) => void }) {
   const [dir, setDir] = createSignal("~");
   const [entries, setEntries] = createSignal<string[]>([]);
@@ -4097,49 +4097,49 @@ function NewAgentModal(props: { providers: string[]; onClose: () => void; onCrea
   const create = async (e: Event) => {
     e.preventDefault(); setErr("");
     try {
-      const r = await api("/api/エージェントs", {
+      const r = await api("/api/agents", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        // start: false → the エージェント stays lazy/stopped; the first prompt (or
-        // ▶ start) kicks off the loop, so no API call fires on an empty エージェント
-        body: JSON.stringify({ ワークスペース: dir(), id: name(), provider: provider() || undefined, model: model() || undefined, start: false }),
+        // start: false → the agent stays lazy/stopped; the first prompt (or
+        // ▶ start) kicks off the loop, so no API call fires on an empty agent
+        body: JSON.stringify({ workspace: dir(), id: name(), provider: provider() || undefined, model: model() || undefined, start: false }),
       });
-      props.onCreated(r.エージェント.id);
+      props.onCreated(r.agent.id);
     } catch (ex) { setErr(String((ex as Error).message)); }
   };
 
   return (
     <Modal title="新規エージェント" onClose={props.onClose}>
       <form onsubmit={create} style="display:flex;flex-direction:column;gap:10px">
-        <label>ワークスペース directory
+        <label>ワークスペースのディレクトリ
           <div style="display:flex;gap:6px">
             <input type="text" class="w100 mono" value={dir()} oninput={(e) => setDir(e.currentTarget.value)} />
-            <button type="button" onclick={() => browse(dir())}>go</button>
-            <button type="button" title="parent directory" onclick={() => parent() ? browse(parent()) : browse("..")}>↑</button>
+            <button type="button" onclick={() => browse(dir())}>開く</button>
+            <button type="button" title="親ディレクトリ" onclick={() => parent() ? browse(parent()) : browse("..")}>↑</button>
           </div>
         </label>
         <div class="dirlist">
           <For each={entries()}>{(n) =>
-            <div class="direntry" onclick={() => browse(`${dir()}/${n}`.replace(/\/+/g, "/"))}>📁 {n}</div>
+            <div class="direntry" onclick={() => browse(`${dir()}/${n}`.replace(/\/+/g, "/"))}><span class="mi">folder</span> {n}</div>
           }</For>
         </div>
         <div style="display:flex;gap:10px">
-          <label style="flex:1">エージェント name <input type="text" placeholder="(ディレクトリ名)" value={name()} oninput={(e) => setName(e.currentTarget.value)} /></label>
-          <label>provider
+          <label style="flex:1">エージェント名 <input type="text" placeholder="(ディレクトリ名)" value={name()} oninput={(e) => setName(e.currentTarget.value)} /></label>
+          <label>プロバイダー
             <select value={provider()} onchange={(e) => setProvider(e.currentTarget.value)}>
               <For each={props.providers}>{(p) => <option>{p}</option>}</For>
             </select>
           </label>
-          <label style="flex:1">model <input type="text" placeholder="(provider default)" value={model()} oninput={(e) => setModel(e.currentTarget.value)} /></label>
+          <label style="flex:1">モデル <input type="text" placeholder="(プロバイダー既定)" value={model()} oninput={(e) => setModel(e.currentTarget.value)} /></label>
         </div>
         <Show when={err()}><span style="color:var(--err);font-size:13px">{err()}</span></Show>
-        <button type="submit" style="align-self:flex-end">create</button>
+        <button type="submit" style="align-self:flex-end">作成</button>
       </form>
     </Modal>
   );
 }
 
-/* ---------- ワークスペース file tree ---------- */
+/* ---------- workspace file tree ---------- */
 
 interface TreeNode {
   name: string;
@@ -4158,29 +4158,28 @@ function ficon(name: string): string {
   const mk = mediaKindOf(name);
   if (mk === "image") return "image";
   if (mk === "video") return "video";
-  if (mk === "audio") return "🎵";
-  if (["ts", "tsx", "mts", "cts"].includes(ext)) return "🟦";
-  if (["js", "mjs", "cjs", "jsx"].includes(ext)) return "🟨";
-  if (ext === "json" || ext === "jsonc") return "🧾";
+  if (mk === "audio") return "audio_file";
+  if (["ts", "tsx", "mts", "cts", "js", "mjs", "cjs", "jsx"].includes(ext)) return "code";
+  if (ext === "json" || ext === "jsonc") return "data_object";
   if (ext === "md" || ext === "mdx" || ext === "markdown") return "description";
   if (ext === "css" || ext === "scss" || ext === "less") return "palette";
-  if (ext === "html" || ext === "htm" || ext === "svg") return "🌐";
-  if (["py", "pyi"].includes(ext)) return "🐍";
-  if (ext === "rs") return "🦀";
-  if (ext === "go") return "🐹";
-  if (ext === "java" || ext === "kt" || ext === "kts") return "☕";
-  if (ext === "rb") return "💎";
-  if (ext === "php") return "🐘";
+  if (ext === "html" || ext === "htm" || ext === "svg") return "language";
+  if (["py", "pyi"].includes(ext)) return "code";
+  if (ext === "rs") return "code";
+  if (ext === "go") return "code";
+  if (ext === "java" || ext === "kt" || ext === "kts") return "code";
+  if (ext === "rb") return "code";
+  if (ext === "php") return "code";
   if (ext === "c" || ext === "h" || ext === "cpp" || ext === "hpp" || ext === "cc") return "jigsaw";
-  if (ext === "sh" || ext === "bash" || ext === "zsh" || ext === "fish") return "🐚";
-  if (ext === "sql") return "🗄";
+  if (ext === "sh" || ext === "bash" || ext === "zsh" || ext === "fish") return "terminal";
+  if (ext === "sql") return "database";
   if (ext === "yml" || ext === "yaml" || ext === "toml" || ext === "ini" || ext === "conf") return "settings";
-  if (ext === "lock") return "🔒";
-  if (name === "Dockerfile" || ext === "dockerfile") return "🐳";
-  if (ext === "zip" || ext === "gz" || ext === "tar" || ext === "tgz" || ext === "bz2") return "📦";
-  if (ext === "pdf") return "📕";
-  if (ext === "txt" || ext === "log") return "📄";
-  return "·";
+  if (ext === "lock") return "lock";
+  if (name === "Dockerfile" || ext === "dockerfile") return "dns";
+  if (ext === "zip" || ext === "gz" || ext === "tar" || ext === "tgz" || ext === "bz2") return "archive";
+  if (ext === "pdf") return "picture_as_pdf";
+  if (ext === "txt" || ext === "log") return "article";
+  return "draft";
 }
 
 function mediaKindOf(path: string): MediaKind | null {
@@ -4191,12 +4190,12 @@ function mediaKindOf(path: string): MediaKind | null {
   return null;
 }
 
-/* ---------- per-エージェント file-panel UI state (remount-proof) ----------
+/* ---------- per-agent file-panel UI state (remount-proof) ----------
  * Preview popups / expanded dirs used to live INSIDE FilesPanel. Any parent
- * re-render that remounted the panel (エージェント snapshot churn re-evaluating the
+ * re-render that remounted the panel (agent snapshot churn re-evaluating the
  * keyed <Show>) wiped them: an open file popup vanished mid-read and the
- * tree collapsed. Keeping the state in a module-level store keyed by エージェント
- * makes it survive remounts; only a REAL エージェント switch starts fresh. */
+ * tree collapsed. Keeping the state in a module-level store keyed by agent
+ * makes it survive remounts; only a REAL agent switch starts fresh. */
 type FileUiState = {
   expanded: Set<string>;
   preview: { path: string; content: string; binary?: boolean; truncated?: boolean } | null;
@@ -4204,18 +4203,18 @@ type FileUiState = {
   viewMode: "code" | "edit" | "md" | "media";
 };
 const fileUi = new Map<string, FileUiState>();
-const fileUiFor = (エージェントId: string): FileUiState => {
-  let s = fileUi.get(エージェントId);
+const fileUiFor = (agentId: string): FileUiState => {
+  let s = fileUi.get(agentId);
   if (!s) {
     s = { expanded: new Set(), preview: null, media: null, viewMode: "code" };
-    fileUi.set(エージェントId, s);
+    fileUi.set(agentId, s);
   }
   return s;
 };
 
-function FilesPanel(props: { エージェントId: string; ワークスペース: string }) {
-  const ui = fileUiFor(props.エージェントId);
-  // path → lazily fetched child listing ("" = ワークスペース root)
+function FilesPanel(props: { agentId: string; workspace: string }) {
+  const ui = fileUiFor(props.agentId);
+  // path → lazily fetched child listing ("" = workspace root)
   const [kids, setKids] = createSignal<Map<string, TreeNode[]>>(new Map());
   const [expanded, setExpandedRaw] = createSignal<Set<string>>(ui.expanded);
   // every preview/media/mode write mirrors into `ui` so a remount of this
@@ -4285,7 +4284,7 @@ function FilesPanel(props: { エージェントId: string; ワークスペース
       if (path) qs.set("path", path);
       if (hidden) qs.set("hidden", "1");
       const r = await api(
-        `/api/エージェントs/${props.エージェントId}/tree?${qs.toString()}`,
+        `/api/agents/${props.agentId}/tree?${qs.toString()}`,
       );
       return parseEntries(path, r.entries ?? []);
     } catch (ex) {
@@ -4294,8 +4293,8 @@ function FilesPanel(props: { エージェントId: string; ワークスペース
     }
   }
 
-  // reset & load the root whenever a DIFFERENT エージェント is selected. The guard
-  // matters: エージェント snapshots update on every poll/event burst, and without it
+  // reset & load the root whenever a DIFFERENT agent is selected. The guard
+  // matters: agent snapshots update on every poll/event burst, and without it
   // each update cleared + re-fetched the whole tree (visible flicker and a
   // pointless /tree request per snapshot).
   // Merge fetched rows into the cache WITHOUT replacing row objects that are
@@ -4325,10 +4324,10 @@ function FilesPanel(props: { エージェントId: string; ワークスペース
 
   let kidsFor = "";
   createEffect(() => {
-    const id = props.エージェントId;
-    if (id === kidsFor) return; // same エージェント — keep the loaded tree as-is
+    const id = props.agentId;
+    if (id === kidsFor) return; // same agent — keep the loaded tree as-is
     kidsFor = id;
-    // a REAL エージェント switch starts a fresh view; a mere panel remount keeps
+    // a REAL agent switch starts a fresh view; a mere panel remount keeps
     // everything (state lives in `ui`, see fileUiFor above)
     setExpanded(new Set<string>());
     setPreview(null);
@@ -4393,7 +4392,7 @@ function FilesPanel(props: { エージェントId: string; ワークスペース
     }
     try {
       const r = await api(
-        `/api/エージェントs/${props.エージェントId}/file?path=${encodeURIComponent(node.path)}`,
+        `/api/agents/${props.agentId}/file?path=${encodeURIComponent(node.path)}`,
       );
       setMedia(null);
       setPreview({ path: node.path, content: r.content ?? "", binary: r.binary, truncated: r.truncated });
@@ -4413,7 +4412,7 @@ function FilesPanel(props: { エージェントId: string; ワークスペース
     if (!pv || saving()) return;
     setSaving(true);
     try {
-      await api(`/api/エージェントs/${props.エージェントId}/file?path=${encodeURIComponent(pv.path)}`, {
+      await api(`/api/agents/${props.agentId}/file?path=${encodeURIComponent(pv.path)}`, {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ content: editBuf(), baseContent: pv.content }),
@@ -4429,16 +4428,16 @@ function FilesPanel(props: { エージェントId: string; ワークスペース
       if (conflict?.current !== undefined) {
         // offer the fresh disk content instead of throwing away the save
         const take = confirm(
-          "This file changed on disk since you opened it.\n" +
-            "OK = load the disk version into the editor (your edits are discarded)\n" +
-            "Cancel = keep editing your copy",
+          "開いてからディスク上で変更されました。\n" +
+            "OK = ディスク版をエディタに読込（編集中の内容は破棄）\n" +
+            "キャンセル = 編集中のコピーを保持",
         );
         if (take) {
           setEditBuf(conflict.current!);
           setPreview({ ...pv, content: conflict.current! });
-          flashHint("loaded the current file from disk");
+          flashHint("ディスクの最新ファイルを読み込みました");
         } else {
-          flashHint("kept your edits — use Save As via bash to force-write");
+          flashHint("編集内容を保持しました — 強制上書きは bash 経由で");
         }
       } else {
         flashHint(`save failed: ${(ex as Error).message}`);
@@ -4462,7 +4461,7 @@ function FilesPanel(props: { エージェントId: string; ワークスペース
         onclick={() => (node.dir ? void toggleDir(node) : void openFileWith(node, "code"))}
         title={node.dir ? `browse ${node.path}` : `preview ${node.path}`}
       >
-        <span class="ficon">{node.dir ? (expanded().has(node.path) ? "▾" : "▸") : ficon(node.name)}</span>
+        <span class="ficon">{node.dir ? (expanded().has(node.path) ? "expand_more" : "chevron_right") : ficon(node.name)}</span>
         <span class="fname">{node.name}</span>
         <Show when={!node.dir && node.size !== undefined}>
           <span class="fsize">{fmtK(node.size!)}</span>
@@ -4474,7 +4473,7 @@ function FilesPanel(props: { エージェントId: string; ワークスペース
     </>
   );
 
-  const wsName = () => props.ワークスペース.split("/").filter(Boolean).pop() ?? props.ワークスペース;
+  const wsName = () => props.workspace.split("/").filter(Boolean).pop() ?? props.workspace;
 
   /** refresh root + every expanded dir IN PLACE — mergeKids keeps unchanged
    * row objects, so the tree updates without flicker and an open file popup
@@ -4496,12 +4495,12 @@ function FilesPanel(props: { エージェントId: string; ワークスペース
 
   return (
     <>
-      <h3 style="display:flex;align-items:center;gap:6px" title="the エージェント's ワークスペース — lazy-loaded, dotfiles hidden; click a folder to expand, a file to preview">
-        🗂 files <span class="muted" style="text-transform:none;letter-spacing:0">· {wsName()}</span>
+      <h3 style="display:flex;align-items:center;gap:6px" title="エージェントのワークスペース — 遅延読み込み、ドットファイルは非表示。フォルダで展開、ファイルでプレビュー">
+        <span class="mi">folder</span> ファイル <span class="muted" style="text-transform:none;letter-spacing:0">· {wsName()}</span>
         <IconBtn
           class="filetoggle"
           icon={refreshing() ? "more" : "refresh"}
-          title="refresh the tree (root + expanded folders) — open popups are kept"
+          title="ツリーを更新（ルート + 展開中フォルダ） — 開いているポップアップは保持"
           onClick={() => void refreshTree()}
         />
         <IconBtn
@@ -4525,7 +4524,7 @@ function FilesPanel(props: { エージェントId: string; ワークスペース
             const name = prompt("New file name (relative to workspace):");
             if (!name) return;
             const p = "/" + name.replace(/^\//, "");
-            api(`/api/agents/${props.エージェントId}/file?path=${encodeURIComponent(p)}`, {
+            api(`/api/agents/${props.agentId}/file?path=${encodeURIComponent(p)}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ content: "", baseContent: null }),
@@ -4536,7 +4535,7 @@ function FilesPanel(props: { エージェントId: string; ワークスペース
       <div class="filebox">
         <Show
           when={(kids().get("") ?? []).length > 0}
-          fallback={<div class="muted" style="padding:6px">{err() || "empty ワークスペース"}</div>}
+          fallback={<div class="muted" style="padding:6px">{err() || "空のワークスペース"}</div>}
         >
           <For each={(kids().get("") ?? []).filter(ignoreFilter)}>
             {(node) => row(node, 0)}
@@ -4545,18 +4544,18 @@ function FilesPanel(props: { エージェントId: string; ワークスペース
       </div>
       <Show when={preview()}>
         {(pv) => (
-          <Modal title={`🗂 ${pv().path}`} onClose={() => { hlRun++; setPreview(null); setMedia(null); }}>
+          <Modal title={pv().path} onClose={() => { hlRun++; setPreview(null); setMedia(null); }}>
             <Show
               when={media()}
               fallback={
                 <>
                   <div class="filetoolbar">
                     <Show when={isMd(pv().path) && !pv().binary}>
-                      <button class={viewMode() === "md" ? "on" : ""} onclick={() => setViewMode("md")} title="rendered markdown">👁 preview</button>
+                      <button class={viewMode() === "md" ? "on" : ""} onclick={() => setViewMode("md")} title="レンダリング表示"><span class="mi">visibility</span> プレビュー</button>
                     </Show>
-                    <button class={viewMode() === "code" ? "on" : ""} onclick={() => { setViewMode("code"); if (!hlHtml()) startHighlighting({ path: pv().path, content: pv().content, truncated: pv().truncated }); }} title="syntax-highlighted source">{"</>"} code</button>
+                    <button class={viewMode() === "code" ? "on" : ""} onclick={() => { setViewMode("code"); if (!hlHtml()) startHighlighting({ path: pv().path, content: pv().content, truncated: pv().truncated }); }} title="構文ハイライト表示">{"</>"} コード</button>
                     <Show when={isEditable(pv())}>
-                      <button class={viewMode() === "edit" ? "on" : ""} onclick={() => setViewMode("edit")} title="edit and save back to the ワークスペース">編集</button>
+                      <button class={viewMode() === "edit" ? "on" : ""} onclick={() => setViewMode("edit")} title="ワークスペースに編集保存">編集</button>
                     </Show>
                   </div>
                   <Show
@@ -4588,9 +4587,9 @@ function FilesPanel(props: { エージェントId: string; ワークスペース
                           spellcheck={false}
                         />
                         <div class="filerow-actions">
-                          <span class="muted">{fmtK(editBuf().length)} bytes</span>
+                          <span class="muted">{fmtK(editBuf().length)} バイト</span>
                           <button class="savebtn" disabled={saving() || editBuf() === pv().content} onclick={() => void saveFile()}>
-                            {saving() ? "保存中…" : "save"}
+                            {saving() ? "保存中…" : "保存"}
                           </button>
                         </div>
                       </div>
@@ -4603,12 +4602,12 @@ function FilesPanel(props: { エージェントId: string; ワークスペース
               <div class="mediapreview">
                 <Show when={media()!.kind === "image"} fallback={
                   <Show when={media()!.kind === "video"} fallback={
-                    <audio controls src={`/api/エージェントs/${props.エージェントId}/raw?path=${encodeURIComponent(media()!.path)}`} />
+                    <audio controls src={`/api/agents/${props.agentId}/raw?path=${encodeURIComponent(media()!.path)}`} />
                   }>
-                    <video controls src={`/api/エージェントs/${props.エージェントId}/raw?path=${encodeURIComponent(media()!.path)}`} />
+                    <video controls src={`/api/agents/${props.agentId}/raw?path=${encodeURIComponent(media()!.path)}`} />
                   </Show>
                 }>
-                  <img src={`/api/エージェントs/${props.エージェントId}/raw?path=${encodeURIComponent(media()!.path)}`} alt={media()!.path.split("/").pop()} />
+                  <img src={`/api/agents/${props.agentId}/raw?path=${encodeURIComponent(media()!.path)}`} alt={media()!.path.split("/").pop()} />
                 </Show>
                 <div class="meta muted">{media()!.kind} preview</div>
               </div>
@@ -4712,7 +4711,7 @@ function SetupWizard(props: { onDone: () => void }) {
   const [models, setModels] = createSignal<
     { id: string; contextLength?: number; pricing?: { prompt: number; completion: number }; modalities?: { input: string[]; output: string[] } }[]
   >([]);
-  const [ワークスペース, setWorkspace] = createSignal("~/teapot-ワークスペース");
+  const [workspace, setWorkspace] = createSignal("~/teapot-workspace");
   const [password, setPassword] = createSignal("");
   const [busy, setBusy] = createSignal(false);
   const [err, setErr] = createSignal("");
@@ -4777,7 +4776,7 @@ function SetupWizard(props: { onDone: () => void }) {
           baseUrl: baseUrl(),
           apiKey: apiKey() || undefined,
           model: model(),
-          ワークスペース: ワークスペース(),
+          workspace: workspace(),
           ...(password() ? { password: password() } : {}),
         }),
       });
@@ -4800,7 +4799,7 @@ function SetupWizard(props: { onDone: () => void }) {
             {[...PROVIDER_PRESETS, CUSTOM_PRESET].map((p) => (
               <button
                 type="button"
-                class={"presetbtn" + (preset().key === p.key ? " アクティブ" : "")}
+                class={"presetbtn" + (preset().key === p.key ? " active" : "")}
                 title={p.hint || p.url}
                 onclick={() => pick(p)}
               >{p.label}</button>
@@ -4809,7 +4808,7 @@ function SetupWizard(props: { onDone: () => void }) {
           <Show when={preset().hint}>
             <div class="muted" style="font-size:11.5px;margin-top:-6px">{preset().hint}</div>
           </Show>
-          <label>base url
+          <label>ベースURL
             <input
               type="text"
               class="w100 mono"
@@ -4821,15 +4820,15 @@ function SetupWizard(props: { onDone: () => void }) {
               {PROVIDER_PRESETS.map((p) => <option value={p.url} />)}
             </datalist>
           </label>
-          <label>api key <input type="password" class="w100" value={apiKey()} oninput={(e) => setApiKey(e.currentTarget.value)} placeholder="(local providers may not need one)" /></label>
-          <label>default model
+          <label>APIキー <input type="password" class="w100" value={apiKey()} oninput={(e) => setApiKey(e.currentTarget.value)} placeholder="(ローカルなら不要なことも)" /></label>
+          <label>既定モデル
             <input
               type="text"
               class="w100 mono"
               list="wiz-model-list"
               value={model()}
               oninput={(e) => setModel(e.currentTarget.value)}
-              placeholder={preset().key === "llamacpp" ? "(any name — serves whichever gguf is loaded)" : "(type to filter models from the endpoint)"}
+              placeholder={preset().key === "llamacpp" ? "(任意の名前 — 読み込み中ggufを提供)" : "(エンドポイントからモデルを絞り込むには入力)"}
             />
             <datalist id="wiz-model-list">
               {models().map((m) => <option value={m.id} />)}
@@ -4839,25 +4838,25 @@ function SetupWizard(props: { onDone: () => void }) {
             when={models().length > 0}
             fallback={
               <div class="muted" style="font-size:11.5px;margin-top:-8px">
-                models appear here automatically once the endpoint answers GET /models
+                エンドポイントが GET /models に応答すれば自動でここに表示されます
               </div>
             }
           >
             <div class="muted" style="font-size:11.5px;margin-top:-8px">
-              {models().length} models found at this endpoint
+              このエンドポイントで{models().length}モデル検出
               <Show when={modelSpec()}> · <span style="color:var(--fg)">{modelSpec()}</span></Show>
             </div>
           </Show>
           <fieldset>
-            <legend>first エージェント</legend>
-            <label>ワークスペース directory
-              <input type="text" class="w100 mono" value={ワークスペース()} oninput={(e) => setWorkspace(e.currentTarget.value)} />
+            <legend>最初のエージェント</legend>
+            <label>ワークスペースのディレクトリ
+              <input type="text" class="w100 mono" value={workspace()} oninput={(e) => setWorkspace(e.currentTarget.value)} />
             </label>
-            <label style="margin-top:4px" title="asks for this password when opening the UI or API from another machine — plain-HTTP LAN traffic is NOT encrypted">protect the API with a password? <input type="password" class="w100" value={password()} oninput={(e) => setPassword(e.currentTarget.value)} placeholder="(optional — LAN traffic is still plain HTTP)" /></label>
+            <label style="margin-top:4px" title="別マシンからUI/APIを開く際にこのパスワードを要求します — LAN内の平文HTTP通信は暗号化されません">APIをパスワードで保護しますか? <input type="password" class="w100" value={password()} oninput={(e) => setPassword(e.currentTarget.value)} placeholder="(任意 — LAN通信は平文HTTPのままです)" /></label>
           </fieldset>
           <Show when={err()}><span style="color:var(--err);font-size:13px">{err()}</span></Show>
           <button type="submit" disabled={busy()} style="background:var(--acc);border:none;border-radius:8px;color:#fff;padding:9px 14px;font-weight:600;cursor:pointer">
-            {busy() ? "保存中…" : "finish setup"}
+            {busy() ? "保存中…" : "セットアップを完了"}
           </button>
         </form>
       </div>
@@ -4877,7 +4876,7 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
   const [minChars, setMinChars] = createSignal(props.cfg.progressMinChars ?? 4000);
   // empty input = DERIVED budget (75% of each model's window) — the old UI
   // always showed 96 and saved it back on every settings save, silently
-  // turning every エージェント into "manual override" at a fixed 96k that fit
+  // turning every agent into "manual override" at a fixed 96k that fit
   // neither 32k local models nor 1M-context ones. Null means "not set".
   const [ctxBudgetK, setCtxBudgetK] = createSignal<number | null>(
     props.cfg.contextTokenBudget != null ? Math.round(props.cfg.contextTokenBudget / 1000) : null,
@@ -4887,7 +4886,7 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
   const [tasks, setTasks] = createSignal<any[]>((props.cfg.tasks ?? []).map((t: any) => ({ ...t })));
   const [err, setErr] = createSignal("");
 
-  const エージェントIds = () => (props.cfg.エージェントs ?? []).map((a: any) => a.id);
+  const agentIds = () => (props.cfg.agents ?? []).map((a: any) => a.id);
 
   const saveProviders = (): Record<string, any> | null => {
     const out: Record<string, any> = {};
@@ -4905,9 +4904,9 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
     if (!providers) return;
     const cleanTasks = tasks()
       .filter((t) => t.id?.trim() || t.prompt?.trim())
-      .map((t, i) => ({ id: t.id?.trim() || `task-${i + 1}`, エージェント: t.エージェント, schedule: t.schedule, prompt: t.prompt, ...(t.forked ? { forked: true } : {}) }));
+      .map((t, i) => ({ id: t.id?.trim() || `task-${i + 1}`, agent: t.agent, schedule: t.schedule, prompt: t.prompt, ...(t.forked ? { forked: true } : {}) }));
     for (const t of cleanTasks) {
-      if (!t.エージェント) { setErr(`task "${t.id}": エージェント is required`); return; }
+      if (!t.agent) { setErr(`task "${t.id}": agent is required`); return; }
       if (!t.schedule?.trim()) { setErr(`task "${t.id}": schedule is required`); return; }
     }
     try {
@@ -4948,11 +4947,11 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
           <Index each={providers()}>
             {(p, i) => (
               <div class="cfgrow">
-                <input class="cfgname" placeholder="name" value={p().name} oninput={(e) => setProviders(providers().map((x, j) => (j === i ? { ...x, name: e.currentTarget.value } : x)))} />
+                <input class="cfgname" placeholder="名前" value={p().name} oninput={(e) => setProviders(providers().map((x, j) => (j === i ? { ...x, name: e.currentTarget.value } : x)))} />
                 <input placeholder="https://…/v1" value={p().baseUrl} oninput={(e) => setProviders(providers().map((x, j) => (j === i ? { ...x, baseUrl: e.currentTarget.value } : x)))} />
-                <input placeholder="api key" type="password" value={p().apiKey} oninput={(e) => setProviders(providers().map((x, j) => (j === i ? { ...x, apiKey: e.currentTarget.value } : x)))} />
-                <input placeholder="default model" value={p().model} oninput={(e) => setProviders(providers().map((x, j) => (j === i ? { ...x, model: e.currentTarget.value } : x)))} />
-                <button type="button" class="danger" title="remove provider" onclick={() => setProviders(providers().filter((_, j) => j !== i))}>✕</button>
+                <input placeholder="APIキー" type="password" value={p().apiKey} oninput={(e) => setProviders(providers().map((x, j) => (j === i ? { ...x, apiKey: e.currentTarget.value } : x)))} />
+                <input placeholder="既定モデル" value={p().model} oninput={(e) => setProviders(providers().map((x, j) => (j === i ? { ...x, model: e.currentTarget.value } : x)))} />
+                <button type="button" class="danger" title="プロバイダを削除" onclick={() => setProviders(providers().filter((_, j) => j !== i))}><span class="mi">close</span></button>
               </div>
             )}
           </Index>
@@ -4974,13 +4973,13 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
               )}
             </For>
           </div>
-          <div><label style="display:flex;align-items:center;gap:6px;margin-top:6px" title="エージェントs without an explicit provider use this one">
-            default provider
+          <div><label style="display:flex;align-items:center;gap:6px;margin-top:6px" title="明示的なプロバイダー指定のないエージェントはこれを使います">
+            既定のプロバイダー
             <select
               value={defaultProvider()}
               onchange={(e) => setDefaultProvider(e.currentTarget.value)}
             >
-              <option value="">(none — first provider wins)</option>
+              <option value="">（なし — 最初のプロバイダーを使用）</option>
               <For each={[...new Set(providers().map((p) => p.name.trim()).filter(Boolean))]}>
                 {(n) => <option value={n}>{n}</option>}
               </For>
@@ -4989,22 +4988,22 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
         </fieldset>
 
         <fieldset>
-          <legend>エージェント runtime</legend>
+          <legend>エージェントのランタイム</legend>
           <div class="cfggrid">
-            {numInput("progress interval (min)", intervalMin(), (v) => setIntervalMin(v), "how often the harness asks for a progress report")}
-            {numInput("progress min chars", minChars(), (v) => setMinChars(v), "progress prompts wait for this much real output")}
-            <label title="auto-compact threshold in k tokens. Leave EMPTY to derive per model (75% of its context window) — recommended, since models differ wildly in window size. Set only to force an absolute cap across all models.">
-              compact budget (k tok)
+            {numInput("進捗の間隔 (分)", intervalMin(), (v) => setIntervalMin(v), "ハーネスが進捗報告を求める間隔")}
+            {numInput("進捗の最小文字数", minChars(), (v) => setMinChars(v), "この実出力文字数に達するまで進捗プロンプトは待ちます")}
+            <label title="kトークン単位の自動圧縮しきい値。空欄でモデル毎に自動算出（コンテキスト窓の75%）— 推奨。全部のモデルに絶対上限を強制したい場合のみ設定。">
+              圧縮予算 (kトークン)
               <input
                 type="number"
                 min="0"
-                placeholder="(derive: 75% of window)"
+                placeholder="(自動: 窓の75%)"
                 value={ctxBudgetK() ?? ""}
                 oninput={(e) => setCtxBudgetK(e.currentTarget.value === "" ? null : Number(e.currentTarget.value))}
               />
             </label>
-            {numInput("context window (k tok)", ctxWinK(), (v) => setCtxWinK(v), "model's real window — 0/blank hides the % gauge")}
-            {numInput("max spawn depth", maxDepth(), (v) => setMaxDepth(v), "sub-エージェント nesting limit (0 = no spawning)")}
+            {numInput("コンテキスト窓 (kトークン)", ctxWinK(), (v) => setCtxWinK(v), "モデルの実際の窓 — 0/空欄で%ゲージを非表示")}
+            {numInput("最大スポーン深度", maxDepth(), (v) => setMaxDepth(v), "サブエージェントの入れ子上限 (0 = スポーンなし)")}
           </div>
         </fieldset>
 
@@ -5016,27 +5015,27 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
                 <div class="cfgcol">
                   <div class="cfgrow">
                     <input placeholder="ID" value={t().id} oninput={(e) => setTasks(tasks().map((x, j) => (j === i ? { ...x, id: e.currentTarget.value } : x)))} />
-                    <input placeholder="エージェントID" value={t().エージェント} oninput={(e) => setTasks(tasks().map((x, j) => (j === i ? { ...x, エージェント: e.currentTarget.value } : x)))} />
-                    <input placeholder="30分毎 / cron" value={t().schedule} oninput={(e) => setTasks(tasks().map((x, j) => (j === i ? { ...x, schedule: e.currentTarget.value } : x)))} />
+                    <input placeholder="エージェントID" value={t().agent} oninput={(e) => setTasks(tasks().map((x, j) => (j === i ? { ...x, agent: e.currentTarget.value } : x)))} />
+                    <input placeholder="every 30m / cron" value={t().schedule} oninput={(e) => setTasks(tasks().map((x, j) => (j === i ? { ...x, schedule: e.currentTarget.value } : x)))} />
                     <label style="display:flex;gap:3px;align-items:center;white-space:nowrap;color:var(--dim);font-size:11px">
                       <input type="checkbox" checked={!!t().forked} onchange={(e) => setTasks(tasks().map((x, j) => (j === i ? { ...x, forked: e.currentTarget.checked } : x)))} />fork
                     </label>
-                    <button type="button" class="danger" onclick={() => setTasks(tasks().filter((_, j) => j !== i))}>✕</button>
+                    <button type="button" class="danger" title="タスクを削除" onclick={() => setTasks(tasks().filter((_, j) => j !== i))}><span class="mi">close</span></button>
                   </div>
                   <textarea rows={2} placeholder="送信するプロンプト" value={t().prompt} oninput={(e) => setTasks(tasks().map((x, j) => (j === i ? { ...x, prompt: e.currentTarget.value } : x)))} />
                 </div>
               )}
             </Index>
           </Show>
-          <button type="button" onclick={() => setTasks([...tasks(), { id: "", エージェント: エージェントIds()[0] ?? "", schedule: "30分毎", prompt: "" }])}>+ タスクを追加</button>
+          <button type="button" onclick={() => setTasks([...tasks(), { id: "", agent: agentIds()[0] ?? "", schedule: "every 30m", prompt: "" }])}>+ タスクを追加</button>
         </fieldset>
 
         <fieldset>
-          <legend>エージェントs (read-only — edit config file or use +)</legend>
-          <For each={props.cfg.エージェントs ?? []}>
+          <legend>エージェント一覧（読取専用 — configファイル編集か+ボタンで）</legend>
+          <For each={props.cfg.agents ?? []}>
             {(a: any) => (
               <div class="cfgrow">
-                <b>{a.id}</b><span class="muted">{a.ワークスペース}</span>
+                <b>{a.id}</b><span class="muted">{a.workspace}</span>
                 <Show when={a.parent}><span class="muted">のサブ @{a.parent}</span></Show>
               </div>
             )}
@@ -5044,9 +5043,9 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
         </fieldset>
 
         <fieldset>
-          <legend>live update</legend>
+          <legend>ライブ更新</legend>
           <div class="cfgrow">
-            <span class="muted">current version: {props.cfg.version ?? "unknown"}</span>
+            <span class="muted">現行バージョン: {props.cfg.version ?? "不明"}</span>
             <button
               type="button"
               onclick={async (e) => {
@@ -5083,7 +5082,7 @@ function ConfigModal(props: { cfg: any; onClose: () => void; onSaved: () => void
             >
               update & restart
             </button>
-            <span class="muted" style="margin-left:8px;font-size:12px">gracefully stops all エージェントs, spawns new process, then reloads this page</span>
+            <span class="muted" style="margin-left:8px;font-size:12px">全エージェントを丁寧に停止し、新プロセスを起動してこのページをリロードします</span>
           </div>
         </fieldset>
 

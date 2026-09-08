@@ -8,20 +8,16 @@ import path from "node:path";
 import {
   discoverSkills,
   isValidSkillName,
-} from "./skills";
-
-/** Node platform detection (win32 | darwin | linux | ...).  Used for
-shell selection so that Windows agents get a Windows-compatible shell
-(powershell / cmd) instead of the Unix-style bash. */
-const IS_WIN = process.platform === "win32";
-
-/** The global seed for background-shell id generation */
-let bgSeq = 0;
   readSkillFile,
   saveSkill,
   SKILL_FILE,
   type SkillDef,
 } from "./skills.ts";
+
+/** Node platform detection (win32 | darwin | linux | ...).  Used for
+shell selection so that Windows agents get a Windows-compatible shell
+(powershell / cmd) instead of the Unix-style bash. */
+const IS_WIN = process.platform === "win32";
 
 export interface ToolContext {
   cwd: string;
@@ -157,9 +153,8 @@ function startBackgroundShell(cmd: string, ctx: ToolContext): string {
   }
   const id = `bg${++bgSeq}`;
   // On Windows, use powershell (or cmd.exe) instead of bash
-  const isWin = process.platform === "win32";
-  const shell = isWin ? (process.env.SHELL || "powershell.exe") : "/bin/bash";
-  const args = isWin ? ["-Command", cmd] : ["-lc", cmd];
+  const shell = IS_WIN ? (process.env.SHELL || "powershell.exe") : "/bin/bash";
+  const args = IS_WIN ? ["-Command", cmd] : ["-lc", cmd];
   const child = spawn(shell, args, {
     cwd: ctx.cwd,
     detached: true,
