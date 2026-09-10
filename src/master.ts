@@ -326,8 +326,64 @@ export class Master {
     retryDelayMs?: number;
     tasks?: TaskConfig[];
   }): void {
+    // Track which providers were added/modified for agent updates
+    const updatedProviders = patch.providers ? { ...(this.config.providers ?? {}), ...patch.providers } : this.config.providers;
+
     if (patch.providers) this.config.providers = patch.providers;
     if (patch.defaultProvider !== undefined) this.config.defaultProvider = patch.defaultProvider;
+
+    // Sync provider/model changes to existing agents
+    for (const agent of this.agents.values()) {
+      const ac = this.config.agents.find((a) => a.id === agent.opts_id());
+      if (!ac) continue;
+
+      // Determine effective provider name for this agent
+      const provName = ac.provider ?? this.config.defaultProvider ?? "openrouter";
+      const prov = updatedProviders?.[provName];
+
+      // Recompute LLM config based on new provider/default settings
+      const newBaseUrl = ac.baseUrl ?? prov?.baseUrl ?? this.config.llm.baseUrl!;
+      const newApiKey = ac.apiKey ?? prov?.apiKey ?? this.config.llm.apiKey!;
+      const newModel = ac.model ?? prov?.model ?? this.config.llm.model!;
+
+      if (newBaseUrl && newApiKey !== undefined && newModel) {
+        const llm: LlmConfig = {
+          baseUrl: newBaseUrl,
+          apiKey: newApiKey,
+          model: newModel,
+          timeoutMs: 120_000,
+        };
+        agent.setLlmConfig(llm);
+
+        // Update the provider name if it changed
+        const effectiveProvider = ac.provider ?? this.config.defaultProvider ?? "";
+        if (effectiveProvider !== (agent as unknown as { opts: { provider: string } }).opts.provider) {
+          (agent as unknown as { opts: { provider: string } }).opts.provider = effectiveProvider;
+        }
+      }
+    }
+
+    // Propagate runtime-tuneable opts to live agents too — config edits should
+    // take effect on already-running sessions without a restart
+    if (patch.retryDelayMs !== undefined) {
+      for (const a of this.agents.values())
+        (a as unknown as { opts: { retryDelayMs: number } }).opts.retryDelayMs = patch.retryDelayMs;
+    }
+    if (patch.maxTurnsPerRound !== undefined) {
+      for (const a of this.agents.values())
+        (a as unknown as { opts: { maxTurnsPerRound: number } }).opts.maxTurnsPerRound =
+          patch.maxTurnsPerRound;
+    }
+    if (patch.onError !== undefined) {
+      for (const a of this.agents.values())
+        (a as unknown as { opts: { onError: string } }).opts.onError = patch.onError;
+    }
+    if (patch.maxSpawnDepth !== undefined) {
+      for (const a of this.agents.values())
+        (a as unknown as { opts: { spawnDepth: number } }).opts.spawnDepth =
+          this.config.maxSpawnDepth ?? 3;
+    }
+
     if (patch.progressIntervalMs !== undefined) {
       this.config.progressIntervalMs = patch.progressIntervalMs;
       for (const a of this.agents.values())

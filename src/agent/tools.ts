@@ -187,6 +187,8 @@ function startBackgroundShell(cmd: string, ctx: ToolContext): string {
     } catch {
       /* notification is best-effort */
     }
+    // proactive cleanup of exited shells so bgShellsByWs doesn't grow forever
+    if (sh.exited && map.delete(id)) void id;
   });
   map.set(id, sh);
   return id;
