@@ -86,11 +86,60 @@ body { background: var(--bg-dark); color: var(--fg); font-size: 15px; }
   }
   .rightbar.open { transform: none; }
 }
+/* Prevent brand text and subtag from overflowing sidebar */
+.brand {
+  min-width: 0;
+  overflow: hidden;
+}
+.brand > span:not(.conn) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+.brand .version {
+  flex-shrink: 0;
+}
+.agent-item {
+  min-width: 0;
+  overflow: hidden;
+  gap: 4px;
+  padding: 7px 6px;
+}
+.agent-item .subtag {
+  max-width: 0;
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: max-width .15s, opacity .15s;
+}
+.agent-item:hover .subtag {
+  max-width: 60px;
+  opacity: 1;
+}
 @media (max-width: 700px) {
   .layout, .layout.right-hidden { grid-template-columns: 60px 1fr; }
   .sidebar { display: none; }
   .layout.right-hidden .sidebar { display: block; }
   .rightbar { width: min(120px, 92vw); }
+  /* Hide brand name on narrow sidebar, show on hover */
+  .brand-name {
+    max-width: 0;
+    opacity: 0;
+  }
+  .brand-item:hover .brand-name {
+    position: absolute;
+    left: 100%;
+    background: var(--bg-darkest);
+    border: 1px solid var(--line);
+    padding: 2px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+    opacity: 1;
+    z-index: 10;
+  }
 }
 
 /* ---- sidebar ---- */
