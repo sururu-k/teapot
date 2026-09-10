@@ -57,6 +57,20 @@ const flashHint = (msg: string) => {
   flashTimer = setTimeout(() => setFlash(""), 3200);
 };
 
+/* ---------- IME composition tracking for Safari ---------- */
+let imeInProgress = false;
+const [imeComposing, setImeComposing] = createSignal(false);
+onMount(() => {
+  const onStart = () => setImeComposing(true);
+  const onEnd = () => setImeComposing(false);
+  document.addEventListener("compositionstart", onStart);
+  document.addEventListener("compositionend", onEnd);
+  onCleanup(() => {
+    document.removeEventListener("compositionstart", onStart);
+    document.removeEventListener("compositionend", onEnd);
+  });
+});
+
 /* ---------- themes ---------- */
 type ThemeMeta = {
   key: string;
@@ -2604,6 +2618,18 @@ export default function App() {
                     addImages(imgs);
                   }
                 }}
+                oncompositionstart={(e) => {
+                  imeInProgress = true;
+                  setImeComposing(true);
+                }}
+                oncompositionend={(e) => {
+                  // Safari fires compositionend BEFORE the final keydown for Enter,
+                  // so we defer the reset to let the keydown handler check our flag
+                  requestAnimationFrame(() => {
+                    imeInProgress = false;
+                    setImeComposing(false);
+                  });
+                }}
                 oninput={(e) => {
                   saveDraft(e.currentTarget.value);
                   setCmdIdx(0); // highlight first suggestion while popup is open
@@ -2633,8 +2659,10 @@ export default function App() {
                     setCmdIdx(-1); // close popup only
                     return;
                   }
-                  // IME composition: Enter confirms the conversion, never sends
-                  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+                  // IME composition: Enter confirms the conversion, never sends.
+                  // Safari fires compositionend BEFORE the final keydown, so
+                  // e.isComposing is already false — track via our own flag instead.
+                  if (e.key === "Enter" && !e.shiftKey && !imeInProgress) {
                     e.preventDefault();
                     void send(e);
                   }
