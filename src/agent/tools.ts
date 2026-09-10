@@ -225,9 +225,11 @@ export function hasRunningBgShells(cwd: string): boolean {
 /** Run a command in its own process group; kill the whole group on timeout. */
 function runShell(cmd: string, ctx: ToolContext, timeoutMs: number): Promise<ToolResult> {
   return new Promise((resolve) => {
-    const child = spawn("/bin/bash", ["-lc", cmd], {
+    const shell = IS_WIN ? (process.env.SHELL || "powershell.exe") : "/bin/bash";
+    const args = IS_WIN ? ["-Command", cmd] : ["-lc", cmd];
+    const child = spawn(shell, args, {
       cwd: ctx.cwd,
-      detached: true, // own process group
+      detached: !IS_WIN, // own process group on POSIX
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, TERM: "dumb", GIT_PAGER: "cat", PAGER: "cat" },
     });
@@ -242,7 +244,13 @@ function runShell(cmd: string, ctx: ToolContext, timeoutMs: number): Promise<Too
 
     const killGroup = () => {
       try {
-        if (child.pid) process.kill(-child.pid, "SIGKILL"); // whole group
+        if (child.pid) {
+          if (IS_WIN) {
+            child.kill();
+          } else {
+            process.kill(-child.pid, "SIGKILL"); // whole group
+          }
+        }
       } catch {
         /* already gone */
       }
