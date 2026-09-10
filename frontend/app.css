@@ -124,21 +124,32 @@ body { background: var(--bg-dark); color: var(--fg); font-size: 15px; }
   .sidebar { display: none; }
   .layout.right-hidden .sidebar { display: block; }
   .rightbar { width: min(120px, 92vw); }
-  /* Hide brand name on narrow sidebar, show on hover */
-  .brand-name {
-    max-width: 0;
-    opacity: 0;
+  /* Hide brand text on narrow sidebar, show tooltip on hover */
+  .brand {
+    font-size: 0;
+    gap: 0;
   }
-  .brand-item:hover .brand-name {
+  .brand:hover {
+    font-size: 14px;
+    gap: 8px;
+    position: relative;
+    z-index: 10;
+  }
+  .brand:hover .version {
+    display: inline;
+  }
+  .brand > span:not(.conn):not(.version) {
     position: absolute;
     left: 100%;
+    white-space: nowrap;
     background: var(--bg-darkest);
     border: 1px solid var(--line);
     padding: 2px 6px;
     border-radius: 4px;
-    white-space: nowrap;
     opacity: 1;
-    z-index: 10;
+  }
+  .brand .version {
+    display: none;
   }
 }
 
